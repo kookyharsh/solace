@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { configureNotificationCategories } from '../src/notifications';
 import * as Notifications from 'expo-notifications';
 import { submitNotificationReply } from '../src/api';
+import { ThemeProvider } from '../src/theme';
 
 export default function RootLayout() {
   const [inter] = useInter({ Inter_400Regular });
@@ -32,10 +33,12 @@ export default function RootLayout() {
       </View>
     );
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <Stack screenOptions={{ headerShown: false }} />
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <ThemeProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <Stack screenOptions={{ headerShown: false }} />
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ThemeProvider>
   );
 }

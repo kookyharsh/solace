@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, GradientBackground } from '../src/components/ui';
-import { useTheme } from '../src/theme';
+import { useTheme, useThemeMode } from '../src/theme';
 import { scheduleGentleReminder } from '../src/notifications';
 import {
   createReminder,
@@ -18,6 +18,7 @@ import {
 
 export default function Settings() {
   const t = useTheme();
+  const { mode, setMode } = useThemeMode();
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
   const [memories, setMemories] = useState<Array<{ id: string; text: string; category: string }>>(
@@ -123,6 +124,37 @@ export default function Settings() {
                 )
             }
           />
+        </Card>
+        <Card style={{ gap: t.spacing.md }}>
+          <Text
+            style={{
+              color: t.colors.ink,
+              fontSize: t.typography.title,
+              fontFamily: 'Nunito_700Bold',
+            }}
+          >
+            Appearance
+          </Text>
+          <View style={{ flexDirection: 'row', gap: t.spacing.sm }}>
+            {(['system', 'light', 'dark'] as const).map((option) => (
+              <Pressable
+                key={option}
+                accessibilityRole="button"
+                accessibilityState={{ selected: mode === option }}
+                onPress={() => setMode(option)}
+                style={{
+                  backgroundColor: mode === option ? t.colors.primary : t.colors.background,
+                  borderRadius: t.radii.pill,
+                  paddingHorizontal: t.spacing.md,
+                  paddingVertical: t.spacing.sm,
+                }}
+              >
+                <Text style={{ color: mode === option ? '#fff' : t.colors.ink }}>
+                  {option[0].toUpperCase() + option.slice(1)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </Card>
         <Card style={{ gap: t.spacing.sm }}>
           <Text
