@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { offlineRepository } from './offline/repository';
 
 const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:4000';
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -104,17 +105,14 @@ export async function streamChat(
   if (!done) throw new Error('Stream ended without completion');
   return { ...done, parts };
 }
-const queuedChatKey = 'solace.queuedChat';
 export async function queueChatMessage(text: string, conversationId?: string) {
-  const raw = await AsyncStorage.getItem(queuedChatKey);
-  const queue = raw ? (JSON.parse(raw) as Array<{ text: string; conversationId?: string }>) : [];
+  const queue = await offlineRepository.readChatQueue();
   queue.push({ text, conversationId });
-  await AsyncStorage.setItem(queuedChatKey, JSON.stringify(queue.slice(-50)));
+  await offlineRepository.writeChatQueue(queue.slice(-50));
 }
 export async function flushQueuedChatMessages() {
-  const raw = await AsyncStorage.getItem(queuedChatKey);
-  if (!raw) return;
-  const queue = JSON.parse(raw) as Array<{ text: string; conversationId?: string }>;
+  const queue = await offlineRepository.readChatQueue();
+  if (!queue.length) return;
   const remaining: typeof queue = [];
   for (const item of queue) {
     try {
@@ -123,8 +121,7 @@ export async function flushQueuedChatMessages() {
       remaining.push(item);
     }
   }
-  if (remaining.length) await AsyncStorage.setItem(queuedChatKey, JSON.stringify(remaining));
-  else await AsyncStorage.removeItem(queuedChatKey);
+  await offlineRepository.writeChatQueue(remaining);
 }
 export async function exportAccount() {
   await ensureGuestSession();
