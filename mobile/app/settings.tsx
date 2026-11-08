@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Alert, Text, TextInput } from 'react-native';
+import { Alert, Pressable, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
 import { scheduleGentleReminder } from '../src/notifications';
-import { exportAccount, updateProfile } from '../src/api';
+import { deleteMemory, exportAccount, getMemories, updateProfile } from '../src/api';
 
 export default function Settings() {
   const t = useTheme();
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
+  const [memories, setMemories] = useState<Array<{ id: string; text: string; category: string }>>(
+    [],
+  );
   useEffect(() => {
     AsyncStorage.getItem('solace.profile').then((raw) => {
       if (raw) {
@@ -20,6 +23,9 @@ export default function Settings() {
         setNickname(value.nickname ?? '');
       }
     });
+    getMemories()
+      .then(setMemories)
+      .catch(() => undefined);
   }, []);
   const save = async () => {
     const existing = await AsyncStorage.getItem('solace.profile');
@@ -101,6 +107,44 @@ export default function Settings() {
                 )
             }
           />
+        </Card>
+        <Card style={{ gap: t.spacing.sm }}>
+          <Text
+            style={{
+              color: t.colors.ink,
+              fontSize: t.typography.title,
+              fontFamily: 'Nunito_700Bold',
+            }}
+          >
+            What your companion remembers
+          </Text>
+          {memories.length ? (
+            memories.map((memory) => (
+              <View
+                key={memory.id}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: t.spacing.sm,
+                }}
+              >
+                <Text style={{ color: t.colors.muted, flex: 1 }}>{memory.text}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() =>
+                    void deleteMemory(memory.id).then(() =>
+                      setMemories((current) => current.filter((item) => item.id !== memory.id)),
+                    )
+                  }
+                >
+                  <Text style={{ color: '#B05A62' }}>Delete</Text>
+                </Pressable>
+              </View>
+            ))
+          ) : (
+            <Text style={{ color: t.colors.muted }}>No saved memories yet.</Text>
+          )}
         </Card>
         <Card>
           <Text style={{ color: t.colors.muted, lineHeight: 22 }}>

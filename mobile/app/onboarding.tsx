@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Switch, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,17 +7,36 @@ import { CompanionBlob } from '../src/companion/CompanionBlob';
 import { Button, Card, Chip, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
 import { useGoogleSignIn } from '../src/googleAuth';
+import { ensureGuestSession, updateProfile } from '../src/api';
 
 export default function Onboarding() {
   const t = useTheme();
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
   const [mood, setMood] = useState(3);
+  const [memoryConsent, setMemoryConsent] = useState(false);
+  const [notificationConsent, setNotificationConsent] = useState(false);
   const finish = async () => {
-    const companionName = name.trim() || 'Mochi';
+    const companionName = name.trim() || null;
+    await ensureGuestSession();
+    await updateProfile({
+      companionName,
+      nickname: nickname.trim() || null,
+      memoryConsent,
+      notificationConsent,
+    }).catch(() => undefined);
     await AsyncStorage.multiSet([
       ['solace.onboarding', 'done'],
-      ['solace.profile', JSON.stringify({ companionName, nickname: nickname.trim(), mood })],
+      [
+        'solace.profile',
+        JSON.stringify({
+          companionName,
+          nickname: nickname.trim(),
+          mood,
+          memoryConsent,
+          notificationConsent,
+        }),
+      ],
     ]);
     router.replace('/(tabs)/chat');
   };
@@ -122,6 +141,41 @@ export default function Onboarding() {
                 />
               ))}
             </View>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <View style={{ flex: 1, paddingRight: t.spacing.md }}>
+                <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>
+                  Let your companion remember
+                </Text>
+                <Text style={{ color: t.colors.muted }}>
+                  You can review or delete memories anytime.
+                </Text>
+              </View>
+              <Switch value={memoryConsent} onValueChange={setMemoryConsent} />
+            </View>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <View style={{ flex: 1, paddingRight: t.spacing.md }}>
+                <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>
+                  Gentle notifications
+                </Text>
+                <Text style={{ color: t.colors.muted }}>Optional reminders and check-ins.</Text>
+              </View>
+              <Switch value={notificationConsent} onValueChange={setNotificationConsent} />
+            </View>
+            <Text style={{ color: t.colors.muted, lineHeight: 22 }}>
+              Solace is a companion, not a replacement for professional care.
+            </Text>
             <Button label="Enter as guest" onPress={() => void finish()} />
             {google.ready && (
               <Button label="Continue with Google" onPress={() => void google.signIn()} />
