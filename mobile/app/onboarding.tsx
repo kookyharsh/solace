@@ -20,27 +20,34 @@ export default function Onboarding() {
   const [wakeTime, setWakeTime] = useState('08:00');
   const [sleepTime, setSleepTime] = useState('22:00');
   const [habits, setHabits] = useState<string[]>([]);
+  const [revealed, setRevealed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const complete = async () => {
+    await AsyncStorage.setItem('solace.onboarding', 'done');
+    router.replace('/(tabs)/chat');
+  };
   const finish = async () => {
+    if (saving) return;
+    setSaving(true);
     const companionName = name.trim() || null;
-    await ensureGuestSession();
-    await updateProfile({
-      companionName,
-      nickname: nickname.trim() || null,
-      memoryConsent,
-      notificationConsent,
-      goals,
-      wakeTime,
-      sleepTime,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    }).catch(() => undefined);
-    await Promise.all(
-      ['water', 'stretch', 'walk', 'screen_break', 'wind_down', 'gratitude'].map((key) =>
-        updateHabitPreference(key, habits.includes(key)).catch(() => undefined),
-      ),
-    );
-    await AsyncStorage.multiSet([
-      ['solace.onboarding', 'done'],
-      [
+    try {
+      await ensureGuestSession();
+      await updateProfile({
+        companionName,
+        nickname: nickname.trim() || null,
+        memoryConsent,
+        notificationConsent,
+        goals,
+        wakeTime,
+        sleepTime,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }).catch(() => undefined);
+      await Promise.all(
+        ['water', 'stretch', 'walk', 'screen_break', 'wind_down', 'gratitude'].map((key) =>
+          updateHabitPreference(key, habits.includes(key)).catch(() => undefined),
+        ),
+      );
+      await AsyncStorage.setItem(
         'solace.profile',
         JSON.stringify({
           companionName,
@@ -52,11 +59,53 @@ export default function Onboarding() {
           wakeTime,
           sleepTime,
         }),
-      ],
-    ]);
-    router.replace('/(tabs)/chat');
+      );
+      setRevealed(true);
+    } finally {
+      setSaving(false);
+    }
   };
-  const google = useGoogleSignIn(() => void finish());
+  const google = useGoogleSignIn(() => void complete());
+  if (revealed)
+    return (
+      <GradientBackground>
+        <SafeAreaView style={{ flex: 1 }}>
+          <View
+            style={{
+              flex: 1,
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: t.spacing.lg,
+              gap: t.spacing.lg,
+            }}
+          >
+            <CompanionBlob size={160} state="proud" moodScore={mood} />
+            <Text
+              style={{
+                color: t.colors.ink,
+                fontFamily: 'Nunito_700Bold',
+                fontSize: t.typography.display,
+                textAlign: 'center',
+              }}
+            >
+              {name.trim() ? `${name.trim()} is ready` : 'Your companion is ready'}
+            </Text>
+            <Text
+              style={{ color: t.colors.muted, textAlign: 'center', fontSize: t.typography.body }}
+            >
+              I’ll keep this space gentle, private, and yours.
+            </Text>
+            <Button label="Continue as guest" onPress={() => void complete()} />
+            {google.ready && (
+              <Button label="Continue with Google" onPress={() => void google.signIn()} />
+            )}
+            <Text style={{ color: t.colors.muted, textAlign: 'center' }}>
+              Solace is a companion, not a replacement for professional care.
+            </Text>
+          </View>
+        </SafeAreaView>
+      </GradientBackground>
+    );
   return (
     <GradientBackground>
       <SafeAreaView style={{ flex: 1 }}>
@@ -289,10 +338,11 @@ export default function Onboarding() {
             <Text style={{ color: t.colors.muted, lineHeight: 22 }}>
               Solace is a companion, not a replacement for professional care.
             </Text>
-            <Button label="Enter as guest" onPress={() => void finish()} />
-            {google.ready && (
-              <Button label="Continue with Google" onPress={() => void google.signIn()} />
-            )}
+            <Button
+              label={saving ? 'Preparing your companion…' : 'Reveal my companion'}
+              disabled={saving}
+              onPress={() => void finish()}
+            />
           </Card>
         </KeyboardAvoidingView>
       </SafeAreaView>
