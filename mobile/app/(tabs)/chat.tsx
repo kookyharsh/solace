@@ -21,6 +21,7 @@ import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-spe
 import {
   flushQueuedChatMessages,
   getConversationMessages,
+  logMood,
   queueChatMessage,
   streamChat,
 } from '../../src/api';
@@ -203,11 +204,14 @@ export default function Chat() {
                   <View
                     style={{ flexDirection: 'row', gap: t.spacing.sm, marginTop: t.spacing.md }}
                   >
-                    {['😔', '🙁', '😐', '🙂', '😊'].map((emoji) => (
+                    {['😔', '🙁', '😐', '🙂', '😊'].map((emoji, index) => (
                       <Pressable
                         key={emoji}
                         accessibilityLabel={`Mood ${emoji}`}
-                        onPress={() => send(`I feel ${emoji}`)}
+                        onPress={() => {
+                          void logMood(index + 1).catch(() => undefined);
+                          send(`I feel ${emoji}`);
+                        }}
                       >
                         <Text style={{ fontSize: 28 }}>{emoji}</Text>
                       </Pressable>
