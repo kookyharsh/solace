@@ -6,10 +6,8 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "android": {
-      "package": "ai.solace.app",
-      "edgeToEdgeEnabled": true
+      "package": "ai.solace.app"
     },
     "ios": {
       "bundleIdentifier": "ai.solace.app"
