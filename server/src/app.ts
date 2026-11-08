@@ -11,6 +11,8 @@ import {
   authResponse,
   conversationCreateRequest,
   chatRequest,
+  moodRequest,
+  xpEventRequest,
 } from '@solace/contracts';
 import type { PrismaClient } from '@prisma/client';
 import type { Config } from './config.js';
@@ -24,7 +26,17 @@ import {
 } from './auth.js';
 import { errorHandler, HttpError } from './errors.js';
 
-type Db = Pick<PrismaClient, '$queryRaw' | 'user' | 'refreshSession' | 'conversation' | 'message'>;
+type Db = Pick<
+  PrismaClient,
+  | '$queryRaw'
+  | 'user'
+  | 'refreshSession'
+  | 'conversation'
+  | 'message'
+  | 'moodEntry'
+  | 'userStats'
+  | 'xpEvent'
+>;
 export function createApp(
   config: Config,
   db: Db,
@@ -161,13 +173,11 @@ export function createApp(
   app.post('/conversations', requireAuth(config), async (req, res, next) => {
     try {
       const input = conversationCreateRequest.parse(req.body);
-      res
-        .status(201)
-        .json(
-          await db.conversation.create({
-            data: { userId: req.userId!, title: input.title ?? null },
-          }),
-        );
+      res.status(201).json(
+        await db.conversation.create({
+          data: { userId: req.userId!, title: input.title ?? null },
+        }),
+      );
     } catch (error) {
       next(error);
     }
@@ -228,6 +238,79 @@ export function createApp(
       next(error);
     }
   });
+  app.post('/mood', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = moodRequest.parse(req.body);
+      res.status(201).json(
+        await db.moodEntry.create({
+          data: {
+            userId: req.userId!,
+            score: input.score,
+            note: input.note ?? null,
+            provenance: 'explicit',
+          },
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.get('/mood', requireAuth(config), async (req, res, next) => {
+    try {
+      const days = Math.min(90, Math.max(1, Number(req.query.range ?? 7)));
+      res.json(
+        await db.moodEntry.findMany({
+          where: {
+            userId: req.userId!,
+            createdAt: { gte: new Date(Date.now() - days * 86400000) },
+            deletedAt: null,
+          },
+          orderBy: { createdAt: 'asc' },
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.get('/gamification/status', requireAuth(config), async (req, res, next) => {
+    try {
+      const stats = await db.userStats.upsert({
+        where: { userId: req.userId! },
+        create: { userId: req.userId! },
+        update: {},
+      });
+      const xpForNext = 100 + (stats.level - 1) * 50;
+      res.json({ ...stats, xpIntoLevel: stats.xp % xpForNext, xpForNext });
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post('/gamification/event', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = xpEventRequest.parse(req.body);
+      const event = await db.xpEvent
+        .create({ data: { userId: req.userId!, ...input } })
+        .catch((error: { code?: string }) => {
+          if (error.code === 'P2002') return null;
+          throw error;
+        });
+      if (!event) {
+        res.json({ duplicate: true });
+        return;
+      }
+      const stats = await db.userStats.upsert({
+        where: { userId: req.userId! },
+        create: { userId: req.userId!, xp: input.amount },
+        update: { xp: { increment: input.amount } },
+      });
+      res.json({ event, stats });
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.get('/quote/today', requireAuth(config), async (_req, res) =>
+    res.json({ text: 'You do not have to solve the whole day at once.', author: 'Solace' }),
+  );
   app.use((_req, _res, next) => next(new HttpError(404, 'NOT_FOUND', 'Route not found')));
   app.use(errorHandler);
   return app;

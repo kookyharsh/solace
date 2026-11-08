@@ -22,6 +22,15 @@ export const chatRequest = z.object({
   conversationId: z.string().uuid().optional(),
   text: z.string().trim().min(1).max(4000),
 });
+export const moodRequest = z.object({
+  score: z.number().int().min(1).max(5),
+  note: z.string().trim().max(1000).optional(),
+});
+export const xpEventRequest = z.object({
+  type: z.string().trim().min(1).max(80),
+  amount: z.number().int().min(0).max(1000),
+  eventKey: z.string().trim().min(1).max(160),
+});
 export const errorResponse = z.object({
   error: z.object({ code: z.string(), message: z.string() }),
 });
