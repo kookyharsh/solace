@@ -58,6 +58,9 @@ type Db = Pick<
   | 'checkinPlan'
   | 'habitPreference'
   | 'quote'
+  | 'habitLog'
+  | 'dailyChallenge'
+  | 'notificationLog'
 >;
 export function createApp(
   config: Config,
@@ -228,6 +231,48 @@ export function createApp(
       },
     });
   };
+  const mergeGuestRecords = async (guestId: string, accountId: string) => {
+    await db.conversation.updateMany({ where: { userId: guestId }, data: { userId: accountId } });
+    await db.moodEntry.updateMany({ where: { userId: guestId }, data: { userId: accountId } });
+    await db.userMemory.updateMany({ where: { userId: guestId }, data: { userId: accountId } });
+    await db.openLoop.updateMany({ where: { userId: guestId }, data: { userId: accountId } });
+    await db.habitLog.updateMany({ where: { userId: guestId }, data: { userId: accountId } });
+    await db.checkinPlan.updateMany({ where: { userId: guestId }, data: { userId: accountId } });
+    await db.reminder.updateMany({ where: { userId: guestId }, data: { userId: accountId } });
+    await db.notificationLog.updateMany({
+      where: { userId: guestId },
+      data: { userId: accountId },
+    });
+    const guestEvents = await db.xpEvent.findMany({ where: { userId: guestId } });
+    for (const event of guestEvents)
+      await db.xpEvent
+        .update({ where: { id: event.id }, data: { userId: accountId } })
+        .catch(() => undefined);
+    const guestAchievements = await db.achievement.findMany({ where: { userId: guestId } });
+    for (const achievement of guestAchievements)
+      await db.achievement
+        .create({
+          data: { userId: accountId, key: achievement.key, unlockedAt: achievement.unlockedAt },
+        })
+        .catch(() => undefined);
+    const guestChallenges = await db.dailyChallenge.findMany({ where: { userId: guestId } });
+    for (const challenge of guestChallenges)
+      await db.dailyChallenge
+        .create({
+          data: {
+            userId: accountId,
+            date: challenge.date,
+            key: challenge.key,
+            completedAt: challenge.completedAt,
+          },
+        })
+        .catch(() => undefined);
+    await db.userStats.delete({ where: { userId: guestId } }).catch(() => undefined);
+    await db.achievement.deleteMany({ where: { userId: guestId } });
+    await db.dailyChallenge.deleteMany({ where: { userId: guestId } });
+    await db.habitPreference.deleteMany({ where: { userId: guestId } });
+    await db.user.delete({ where: { id: guestId } });
+  };
   const app = express();
   app.disable('x-powered-by');
   app.use((req, res, next) => {
@@ -338,9 +383,11 @@ export function createApp(
       }
       const existing = await db.user.findUnique({ where: { googleId: identity.sub } });
       const guest = await db.user.findUnique({ where: { id: req.userId! } });
+      if (existing && guest && existing.id !== guest.id)
+        await mergeGuestRecords(guest.id, existing.id);
       const user =
         existing ??
-        (guest && guest.email.startsWith('guest-')
+        (guest && guest.googleId.startsWith('guest-')
           ? await db.user.update({
               where: { id: guest.id },
               data: { googleId: identity.sub, email: identity.email, name: identity.name },
