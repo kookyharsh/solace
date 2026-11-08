@@ -410,6 +410,26 @@ export function createApp(
       next(error);
     }
   });
+  app.get('/journal/today', requireAuth(config), async (req, res, next) => {
+    try {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const messages = await db.message.findMany({
+        where: {
+          conversation: { userId: req.userId!, deletedAt: null },
+          createdAt: { gte: start },
+          deletedAt: null,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      res.json({
+        messages,
+        summary: messages.length ? 'A few moments from today, held gently.' : null,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
   app.post('/conversations', requireAuth(config), async (req, res, next) => {
     try {
       const input = conversationCreateRequest.parse(req.body);

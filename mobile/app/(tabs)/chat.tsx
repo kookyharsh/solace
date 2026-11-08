@@ -126,6 +126,7 @@ export default function Chat() {
             </Text>
             <Text style={{ color: t.colors.muted }}>A gentle place to be heard</Text>
           </View>
+          <IconButton label="Today journal" icon="◷" onPress={() => router.push('/today')} />
           <IconButton label="Chat history" icon="☰" onPress={() => router.push('/history')} />
         </View>
         <FlatList

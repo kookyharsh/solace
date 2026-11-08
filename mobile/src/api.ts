@@ -135,6 +135,18 @@ export async function getConversationMessages(id: string) {
     }>
   >(`/conversations/${id}/messages`);
 }
+export async function getTodayJournal() {
+  await ensureGuestSession();
+  return request<{
+    messages: Array<{
+      id: string;
+      role: 'user' | 'assistant';
+      parts: Array<{ type: string; text?: string; [key: string]: unknown }>;
+      createdAt: string;
+    }>;
+    summary: string | null;
+  }>('/journal/today');
+}
 export async function deleteConversation(id: string) {
   await ensureGuestSession();
   const accessToken = await AsyncStorage.getItem('solace.accessToken');
