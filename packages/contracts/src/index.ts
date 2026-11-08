@@ -89,6 +89,10 @@ export const profileUpdateRequest = z.object({
     .nullable()
     .optional(),
 });
+export const habitPreferenceRequest = z.object({
+  enabled: z.boolean(),
+  mutedUntil: z.coerce.date().nullable().optional(),
+});
 export const syncPushRequest = z.object({
   lastPulledAt: z.coerce.date().nullable().optional(),
   changes: z.object({

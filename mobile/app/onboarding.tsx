@@ -7,7 +7,7 @@ import { CompanionBlob } from '../src/companion/CompanionBlob';
 import { Button, Card, Chip, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
 import { useGoogleSignIn } from '../src/googleAuth';
-import { ensureGuestSession, updateProfile } from '../src/api';
+import { ensureGuestSession, updateHabitPreference, updateProfile } from '../src/api';
 
 export default function Onboarding() {
   const t = useTheme();
@@ -19,6 +19,7 @@ export default function Onboarding() {
   const [goals, setGoals] = useState<string[]>([]);
   const [wakeTime, setWakeTime] = useState('08:00');
   const [sleepTime, setSleepTime] = useState('22:00');
+  const [habits, setHabits] = useState<string[]>([]);
   const finish = async () => {
     const companionName = name.trim() || null;
     await ensureGuestSession();
@@ -32,6 +33,11 @@ export default function Onboarding() {
       sleepTime,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     }).catch(() => undefined);
+    await Promise.all(
+      ['water', 'stretch', 'walk', 'screen_break', 'wind_down', 'gratitude'].map((key) =>
+        updateHabitPreference(key, habits.includes(key)).catch(() => undefined),
+      ),
+    );
     await AsyncStorage.multiSet([
       ['solace.onboarding', 'done'],
       [
@@ -171,6 +177,39 @@ export default function Onboarding() {
                     onPress={() =>
                       setGoals((current) =>
                         selected ? current.filter((item) => item !== goal) : [...current, goal],
+                      )
+                    }
+                  />
+                );
+              })}
+            </View>
+            <Text
+              style={{
+                color: t.colors.ink,
+                fontFamily: 'Nunito_700Bold',
+                fontSize: t.typography.title,
+              }}
+            >
+              Small habits to support
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.sm }}>
+              {[
+                ['water', 'Drink water'],
+                ['stretch', 'Stretch'],
+                ['walk', 'Short walk'],
+                ['screen_break', 'Screen break'],
+                ['wind_down', 'Wind down'],
+                ['gratitude', 'Gratitude'],
+              ].map(([key, label]) => {
+                const selected = habits.includes(key);
+                return (
+                  <Chip
+                    key={key}
+                    label={label}
+                    selected={selected}
+                    onPress={() =>
+                      setHabits((current) =>
+                        selected ? current.filter((item) => item !== key) : [...current, key],
                       )
                     }
                   />

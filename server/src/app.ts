@@ -24,6 +24,7 @@ import {
   openLoopRequest,
   openLoopUpdateRequest,
   profileUpdateRequest,
+  habitPreferenceRequest,
   syncPushRequest,
   messagePart,
 } from '@solace/contracts';
@@ -519,6 +520,35 @@ export function createApp(
       const input = profileUpdateRequest.parse(req.body);
       const user = await db.user.update({ where: { id: req.userId! }, data: input });
       res.json(userResponse.parse(user));
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.get('/habits', requireAuth(config), async (req, res, next) => {
+    try {
+      res.json(await db.habitPreference.findMany({ where: { userId: req.userId! } }));
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.patch('/habits/:key', requireAuth(config), async (req, res, next) => {
+    try {
+      const key = String(req.params.key);
+      if (!['water', 'stretch', 'walk', 'screen_break', 'wind_down', 'gratitude'].includes(key))
+        throw new HttpError(400, 'INVALID_HABIT', 'Unknown habit preference');
+      const input = habitPreferenceRequest.parse(req.body);
+      res.json(
+        await db.habitPreference.upsert({
+          where: { userId_key: { userId: req.userId!, key } },
+          create: {
+            userId: req.userId!,
+            key,
+            enabled: input.enabled,
+            mutedUntil: input.mutedUntil ?? null,
+          },
+          update: { enabled: input.enabled, mutedUntil: input.mutedUntil ?? null },
+        }),
+      );
     } catch (error) {
       next(error);
     }

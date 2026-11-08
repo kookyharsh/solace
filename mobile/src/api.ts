@@ -267,6 +267,13 @@ export async function updateProfile(profile: {
   await ensureGuestSession();
   return request('/me', { method: 'PATCH', body: JSON.stringify(profile) });
 }
+export async function updateHabitPreference(key: string, enabled: boolean) {
+  await ensureGuestSession();
+  return request(`/habits/${encodeURIComponent(key)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ enabled }),
+  });
+}
 export async function getProfile() {
   await ensureGuestSession();
   return request<{ memoryConsent: boolean; notificationConsent: boolean }>('/me');
