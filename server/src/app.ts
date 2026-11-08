@@ -1080,6 +1080,18 @@ export function createApp(
       next(error);
     }
   });
+  app.delete('/open-loops/:id', requireAuth(config), async (req, res, next) => {
+    try {
+      const updated = await db.openLoop.updateMany({
+        where: { id: String(req.params.id), userId: req.userId!, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      if (!updated.count) throw new HttpError(404, 'NOT_FOUND', 'Open loop not found');
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  });
   app.use((_req, _res, next) => next(new HttpError(404, 'NOT_FOUND', 'Route not found')));
   app.use(errorHandler);
   return app;

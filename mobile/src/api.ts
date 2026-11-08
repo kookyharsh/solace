@@ -241,3 +241,16 @@ export async function deleteReminder(id: string) {
   await ensureGuestSession();
   await request(`/reminders/${id}`, { method: 'DELETE' });
 }
+export async function getOpenLoops() {
+  await ensureGuestSession();
+  return request<Array<{ id: string; text: string; status: string; dueAt: string | null }>>(
+    '/open-loops',
+  );
+}
+export async function resolveOpenLoop(id: string) {
+  await ensureGuestSession();
+  return request(`/open-loops/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'resolved' }),
+  });
+}
