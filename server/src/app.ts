@@ -42,6 +42,7 @@ type Db = Pick<
   | 'message'
   | 'moodEntry'
   | 'userStats'
+  | 'achievement'
   | 'xpEvent'
   | 'device'
   | 'reminder'
@@ -466,6 +467,18 @@ export function createApp(
       });
       const xpForNext = 100 + (stats.level - 1) * 50;
       res.json({ ...stats, xpIntoLevel: stats.xp % xpForNext, xpForNext });
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.get('/gamification/achievements', requireAuth(config), async (req, res, next) => {
+    try {
+      res.json(
+        await db.achievement.findMany({
+          where: { userId: req.userId! },
+          orderBy: { unlockedAt: 'desc' },
+        }),
+      );
     } catch (error) {
       next(error);
     }

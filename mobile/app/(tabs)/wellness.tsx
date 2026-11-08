@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CompanionBlob } from '../../src/companion/CompanionBlob';
 import { Button, Card, Chip, GradientBackground, ProgressBar } from '../../src/components/ui';
 import { useTheme } from '../../src/theme';
-import { awardXp, getGamification, logMood } from '../../src/api';
+import { awardXp, getAchievements, getGamification, logMood } from '../../src/api';
 
 export default function Wellness() {
   const t = useTheme();
@@ -14,12 +14,16 @@ export default function Wellness() {
   const [mood, setMood] = useState<number>();
   const [completed, setCompleted] = useState<string[]>([]);
   const [stats, setStats] = useState({ level: 1, xp: 0, xpIntoLevel: 0, xpForNext: 100 });
+  const [achievements, setAchievements] = useState<Array<{ key: string; unlockedAt: string }>>([]);
   useEffect(() => {
     AsyncStorage.getItem('solace.profile').then((raw) => {
       if (raw) setCompanionName(JSON.parse(raw).companionName ?? 'Your companion');
     });
     getGamification()
       .then(setStats)
+      .catch(() => undefined);
+    getAchievements()
+      .then(setAchievements)
       .catch(() => undefined);
   }, []);
   const toggle = (key: string) =>
@@ -61,6 +65,22 @@ export default function Wellness() {
               <Text style={{ color: t.colors.primary }}>{stats.xp} XP</Text>
             </View>
             <ProgressBar value={(stats.xpIntoLevel / stats.xpForNext) * 100} />
+          </Card>
+          <Card style={{ gap: t.spacing.md }}>
+            <Text
+              style={{
+                color: t.colors.ink,
+                fontFamily: 'Nunito_700Bold',
+                fontSize: t.typography.title,
+              }}
+            >
+              Achievements
+            </Text>
+            <Text style={{ color: t.colors.muted }}>
+              {achievements.length
+                ? achievements.map((item) => item.key).join(' · ')
+                : 'Your first rewards will appear here.'}
+            </Text>
           </Card>
           <Card style={{ gap: t.spacing.md }}>
             <Text style={{ color: t.colors.muted }}>Today’s note</Text>

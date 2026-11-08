@@ -65,6 +65,10 @@ export async function getGamification() {
     '/gamification/status',
   );
 }
+export async function getAchievements() {
+  await ensureGuestSession();
+  return request<Array<{ key: string; unlockedAt: string }>>('/gamification/achievements');
+}
 export async function getConversations() {
   await ensureGuestSession();
   return request<Array<{ id: string; title: string | null; updatedAt: string }>>('/conversations');
