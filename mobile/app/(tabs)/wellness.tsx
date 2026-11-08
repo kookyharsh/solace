@@ -117,6 +117,7 @@ export default function Wellness() {
               Gentle exercises
             </Text>
             <Button label="Start breathing" onPress={() => router.push('/breathing')} />
+            <Button label="Settings" onPress={() => router.push('/settings')} />
             <Text style={{ color: t.colors.muted }}>
               Your companion, {companionName}, will be here when you return.
             </Text>
