@@ -13,8 +13,10 @@ import {
   chatRequest,
   moodRequest,
   xpEventRequest,
+  deviceRequest,
+  reminderRequest,
 } from '@solace/contracts';
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import type { Config } from './config.js';
 import {
   makeGoogleVerifier,
@@ -25,6 +27,7 @@ import {
   type GoogleVerifier,
 } from './auth.js';
 import { errorHandler, HttpError } from './errors.js';
+import { generateCompanionReply } from './ai.js';
 
 type Db = Pick<
   PrismaClient,
@@ -36,6 +39,8 @@ type Db = Pick<
   | 'moodEntry'
   | 'userStats'
   | 'xpEvent'
+  | 'device'
+  | 'reminder'
 >;
 export function createApp(
   config: Config,
@@ -215,23 +220,24 @@ export function createApp(
           source: 'chat',
         },
       });
-      const parts = input.text.toLowerCase().includes('mood')
-        ? [
-            {
-              type: 'text',
-              text: 'I can help you notice the shape of your week. How are you feeling right now?',
-            },
-            { type: 'mood_picker' },
-          ]
-        : [
-            {
-              type: 'text',
-              text: 'I’m here with you. Tell me a little more about what’s on your mind.',
-            },
-            { type: 'quick_replies', options: ['I feel low', 'I feel okay', 'I want to reflect'] },
-          ];
+      const reply = await generateCompanionReply(input.text, config);
+      const parts = reply.parts.length
+        ? reply.parts
+        : input.text.toLowerCase().includes('mood')
+          ? [{ type: 'mood_picker' }]
+          : [
+              {
+                type: 'quick_replies',
+                options: ['I feel low', 'I feel okay', 'I want to reflect'],
+              },
+            ];
       const assistantMessage = await db.message.create({
-        data: { conversationId: conversation.id, role: 'assistant', parts, source: 'chat' },
+        data: {
+          conversationId: conversation.id,
+          role: 'assistant',
+          parts: [{ type: 'text', text: reply.text }, ...parts] as unknown as Prisma.InputJsonValue,
+          source: 'chat',
+        },
       });
       res.json({ conversationId: conversation.id, userMessage, assistantMessage });
     } catch (error) {
@@ -311,6 +317,44 @@ export function createApp(
   app.get('/quote/today', requireAuth(config), async (_req, res) =>
     res.json({ text: 'You do not have to solve the whole day at once.', author: 'Solace' }),
   );
+  app.post('/devices', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = deviceRequest.parse(req.body);
+      res.json(
+        await db.device.upsert({
+          where: { expoPushToken: input.expoPushToken },
+          create: { userId: req.userId!, ...input },
+          update: { userId: req.userId!, platform: input.platform },
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.get('/reminders', requireAuth(config), async (req, res, next) => {
+    try {
+      res.json(
+        await db.reminder.findMany({
+          where: { userId: req.userId!, deletedAt: null },
+          orderBy: { time: 'asc' },
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post('/reminders', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = reminderRequest.parse(req.body);
+      res.status(201).json(
+        await db.reminder.create({
+          data: { userId: req.userId!, ...input, enabled: input.enabled ?? true },
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
   app.use((_req, _res, next) => next(new HttpError(404, 'NOT_FOUND', 'Route not found')));
   app.use(errorHandler);
   return app;

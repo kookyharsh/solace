@@ -31,6 +31,17 @@ export const xpEventRequest = z.object({
   amount: z.number().int().min(0).max(1000),
   eventKey: z.string().trim().min(1).max(160),
 });
+export const deviceRequest = z.object({
+  expoPushToken: z.string().min(10).max(512),
+  platform: z.enum(['android', 'ios', 'web']),
+});
+export const reminderRequest = z.object({
+  type: z.string().min(1).max(50),
+  title: z.string().trim().min(1).max(120),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  days: z.array(z.number().int().min(0).max(6)).max(7),
+  enabled: z.boolean().optional(),
+});
 export const errorResponse = z.object({
   error: z.object({ code: z.string(), message: z.string() }),
 });

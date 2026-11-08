@@ -9,6 +9,8 @@ const schema = z.object({
   GOOGLE_CLIENT_ID: z.string().min(10),
   JWT_SECRET: z.string().min(32),
   JWT_ISSUER: z.string().default('solace-api'),
+  GEMINI_API_KEY: z.string().min(10),
+  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
 });
 
 export type Config = z.infer<typeof schema>;
