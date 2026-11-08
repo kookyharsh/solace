@@ -17,6 +17,7 @@ import {
   notificationReplyRequest,
   reminderRequest,
   memoryRequest,
+  memoryUpdateRequest,
   openLoopRequest,
   profileUpdateRequest,
   syncPushRequest,
@@ -111,6 +112,23 @@ export function createApp(
         author: 'Solace',
       });
     return parts;
+  };
+  const companionContext = async (userId: string) => {
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { companionName: true, memoryConsent: true },
+    });
+    if (!user) return { companionName: null, context: '' };
+    if (!user.memoryConsent) return { companionName: user.companionName, context: '' };
+    const memories = await db.userMemory.findMany({
+      where: { userId, deletedAt: null },
+      orderBy: { updatedAt: 'desc' },
+      take: 8,
+    });
+    return {
+      companionName: user.companionName,
+      context: memories.map((memory) => `${memory.category}: ${memory.text}`).join('; '),
+    };
   };
   const app = express();
   app.disable('x-powered-by');
@@ -413,7 +431,13 @@ export function createApp(
           source: 'chat',
         },
       });
-      const reply = await generateCompanionReply(input.text, config);
+      const profile = await companionContext(req.userId!);
+      const reply = await generateCompanionReply(
+        input.text,
+        config,
+        profile.companionName,
+        profile.context,
+      );
       const parts = await richPartsFor(
         input.text,
         req.userId!,
@@ -458,7 +482,13 @@ export function createApp(
           source: 'chat',
         },
       });
-      const reply = await generateCompanionReply(input.text, config);
+      const profile = await companionContext(req.userId!);
+      const reply = await generateCompanionReply(
+        input.text,
+        config,
+        profile.companionName,
+        profile.context,
+      );
       const parts = await richPartsFor(input.text, req.userId!, reply.parts);
       const assistant = await db.message.create({
         data: {
@@ -614,7 +644,13 @@ export function createApp(
           parts: [{ type: 'text', text: input.text }],
         },
       });
-      const reply = await generateCompanionReply(input.text, config);
+      const profile = await companionContext(req.userId!);
+      const reply = await generateCompanionReply(
+        input.text,
+        config,
+        profile.companionName,
+        profile.context,
+      );
       const parts = await richPartsFor(input.text, req.userId!, reply.parts);
       const assistantMessage = await db.message.create({
         data: {
@@ -696,6 +732,31 @@ export function createApp(
           data: { userId: req.userId!, text: input.text, category: input.category },
         }),
       );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.patch('/memory/:id', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = memoryUpdateRequest.parse(req.body);
+      const updated = await db.userMemory.updateMany({
+        where: { id: String(req.params.id), userId: req.userId!, deletedAt: null },
+        data: input,
+      });
+      if (!updated.count) throw new HttpError(404, 'NOT_FOUND', 'Memory not found');
+      res.json(await db.userMemory.findUnique({ where: { id: String(req.params.id) } }));
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.delete('/memory/:id', requireAuth(config), async (req, res, next) => {
+    try {
+      const updated = await db.userMemory.updateMany({
+        where: { id: String(req.params.id), userId: req.userId!, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      if (!updated.count) throw new HttpError(404, 'NOT_FOUND', 'Memory not found');
+      res.status(204).send();
     } catch (error) {
       next(error);
     }

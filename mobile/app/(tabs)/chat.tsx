@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -35,6 +36,12 @@ export default function Chat() {
   const [messages, setMessages] = useState(starter);
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
+  const [companionName, setCompanionName] = useState('Your companion');
+  useEffect(() => {
+    AsyncStorage.getItem('solace.profile').then((raw) => {
+      if (raw) setCompanionName(JSON.parse(raw).companionName || 'Your companion');
+    });
+  }, []);
   const send = (value = draft) => {
     const text = value.trim();
     if (!text || thinking) return;
@@ -92,7 +99,7 @@ export default function Chat() {
                 fontSize: t.typography.title,
               }}
             >
-              Your companion
+              {companionName}
             </Text>
             <Text style={{ color: t.colors.muted }}>A gentle place to be heard</Text>
           </View>

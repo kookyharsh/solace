@@ -14,6 +14,8 @@ export function isCrisis(text: string) {
 export async function generateCompanionReply(
   text: string,
   config: Config,
+  companionName?: string | null,
+  context = '',
 ): Promise<CompanionReply> {
   if (isCrisis(text))
     return {
@@ -46,7 +48,7 @@ export async function generateCompanionReply(
             role: 'user',
             parts: [
               {
-                text: `You are a warm wellness companion. Keep replies to 1-4 short sentences, ask one question, never diagnose. User says: ${text}`,
+                text: `You are ${companionName?.trim() || 'an unnamed'} warm wellness companion. Keep replies to 1-4 short sentences, ask one question, never diagnose. Do not claim to be human. Use the user's language when possible. ${context ? `Known context (only use if relevant): ${context}` : ''} User says: ${text}`,
               },
             ],
           },

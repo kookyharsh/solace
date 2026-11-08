@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
 import { scheduleGentleReminder } from '../src/notifications';
-import { exportAccount } from '../src/api';
+import { exportAccount, updateProfile } from '../src/api';
 
 export default function Settings() {
   const t = useTheme();
@@ -28,10 +28,14 @@ export default function Settings() {
       'solace.profile',
       JSON.stringify({
         ...value,
-        companionName: name.trim() || 'Mochi',
+        companionName: name.trim() || null,
         nickname: nickname.trim(),
       }),
     );
+    await updateProfile({
+      companionName: name.trim() || null,
+      nickname: nickname.trim() || null,
+    }).catch(() => undefined);
     router.back();
   };
   return (

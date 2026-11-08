@@ -51,6 +51,10 @@ export const memoryRequest = z.object({
   text: z.string().trim().min(1).max(500),
   category: z.enum(['fact', 'preference', 'habit']).default('fact'),
 });
+export const memoryUpdateRequest = z.object({
+  text: z.string().trim().min(1).max(500).optional(),
+  category: z.enum(['fact', 'preference', 'habit']).optional(),
+});
 export const openLoopRequest = z.object({
   text: z.string().trim().min(1).max(500),
   dueAt: z.coerce.date().optional(),

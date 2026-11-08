@@ -97,3 +97,21 @@ export async function submitNotificationReply(text: string, conversationId?: str
     body: JSON.stringify({ text, conversationId, notificationType: 'checkin' }),
   });
 }
+export async function updateProfile(profile: {
+  name?: string | null;
+  nickname?: string | null;
+  companionName?: string | null;
+  memoryConsent?: boolean;
+  notificationConsent?: boolean;
+}) {
+  await ensureGuestSession();
+  return request('/me', { method: 'PATCH', body: JSON.stringify(profile) });
+}
+export async function getMemories() {
+  await ensureGuestSession();
+  return request<Array<{ id: string; text: string; category: string }>>('/memory');
+}
+export async function deleteMemory(id: string) {
+  await ensureGuestSession();
+  await request(`/memory/${id}`, { method: 'DELETE' });
+}
