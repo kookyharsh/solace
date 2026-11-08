@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Card, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
+import { awardXp } from '../src/api';
 
 const steps = [
   ['5 things you can see', 'Name five colours, shapes, or details around you.'],
@@ -47,7 +48,17 @@ export default function Grounding() {
           </Text>
           <Pressable
             accessibilityRole="button"
-            onPress={() => (done ? router.back() : setStep((value) => value + 1))}
+            onPress={() => {
+              if (done) router.back();
+              else {
+                const next = step + 1;
+                setStep(next);
+                if (next === steps.length)
+                  void awardXp('grounding', 15, `grounding-${new Date().toISOString()}`).catch(
+                    () => undefined,
+                  );
+              }
+            }}
             style={{
               backgroundColor: t.colors.primary,
               borderRadius: t.radii.pill,
