@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   FlatList,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   Text,
@@ -288,6 +289,42 @@ export default function Chat() {
                         }
                       />
                     );
+                  if (part.type === 'crisis_card') {
+                    const helplines = Array.isArray(part.helplines)
+                      ? (part.helplines as Array<{ name?: string; phone?: string; url?: string }>)
+                      : [];
+                    return (
+                      <Card
+                        key={`crisis-${index}`}
+                        style={{
+                          marginTop: t.spacing.md,
+                          backgroundColor: '#FFF0EE',
+                          gap: t.spacing.sm,
+                        }}
+                      >
+                        <Text style={{ color: '#7A2E35', fontFamily: 'Nunito_700Bold' }}>
+                          You deserve immediate, human support
+                        </Text>
+                        <Text style={{ color: '#7A2E35' }}>
+                          If you may be in danger, contact emergency services or someone you trust
+                          now.
+                        </Text>
+                        {helplines.map((line) => (
+                          <Pressable
+                            key={`${line.name}-${line.phone ?? line.url}`}
+                            accessibilityRole="link"
+                            onPress={() => void Linking.openURL(line.url ?? `tel:${line.phone}`)}
+                          >
+                            <Text
+                              style={{ color: t.colors.primary, textDecorationLine: 'underline' }}
+                            >
+                              {line.name}: {line.phone ?? line.url}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </Card>
+                    );
+                  }
                   return null;
                 })}
               </Card>
