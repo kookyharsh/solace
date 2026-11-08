@@ -85,4 +85,62 @@ export const syncPushRequest = z.object({
 export const errorResponse = z.object({
   error: z.object({ code: z.string(), message: z.string() }),
 });
+const partText = z.object({ type: z.literal('text'), text: z.string() }).passthrough();
+const partQuickReplies = z
+  .object({ type: z.literal('quick_replies'), options: z.array(z.string()).max(8) })
+  .passthrough();
+const partMoodPicker = z.object({ type: z.literal('mood_picker') }).passthrough();
+const partMoodChart = z
+  .object({
+    type: z.literal('mood_chart'),
+    range: z.number().int().positive(),
+    entries: z.array(z.object({ score: z.number(), createdAt: z.coerce.date() })),
+  })
+  .passthrough();
+const partXp = z
+  .object({
+    type: z.literal('xp_card'),
+    level: z.number().int().positive(),
+    xp: z.number().int().nonnegative(),
+    xpIntoLevel: z.number().int().nonnegative(),
+    xpForNext: z.number().int().positive(),
+  })
+  .passthrough();
+const partStreak = z
+  .object({
+    type: z.literal('streak_card'),
+    current: z.number().int().nonnegative(),
+    longest: z.number().int().nonnegative(),
+  })
+  .passthrough();
+const partActivity = z
+  .object({
+    type: z.literal('activity_card'),
+    kind: z.string(),
+    title: z.string(),
+    durationMinutes: z.number().positive(),
+    xp: z.number().int().nonnegative(),
+  })
+  .passthrough();
+const partQuote = z
+  .object({
+    type: z.literal('quote_card'),
+    text: z.string(),
+    author: z.string().nullable().optional(),
+  })
+  .passthrough();
+const partCrisis = z
+  .object({ type: z.literal('crisis_card'), helplines: z.array(z.record(z.string(), z.string())) })
+  .passthrough();
+export const messagePart = z.union([
+  partText,
+  partQuickReplies,
+  partMoodPicker,
+  partMoodChart,
+  partXp,
+  partStreak,
+  partActivity,
+  partQuote,
+  partCrisis,
+]);
 export type UserResponse = z.infer<typeof userResponse>;

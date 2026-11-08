@@ -24,6 +24,7 @@ import {
   openLoopUpdateRequest,
   profileUpdateRequest,
   syncPushRequest,
+  messagePart,
 } from '@solace/contracts';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type { Config } from './config.js';
@@ -68,7 +69,11 @@ export function createApp(
     userId: string,
     replyParts: Array<Record<string, unknown>>,
   ) => {
-    if (replyParts.some((part) => part.type === 'crisis_card')) return replyParts;
+    if (replyParts.some((part) => part.type === 'crisis_card'))
+      return replyParts.flatMap((part) => {
+        const parsed = messagePart.safeParse(part);
+        return parsed.success ? [parsed.data as Record<string, unknown>] : [];
+      });
     const lower = text.toLowerCase();
     const parts = [...replyParts];
     if (lower.includes('mood') || lower.includes('week') || lower.includes('feeling')) {
@@ -118,7 +123,10 @@ export function createApp(
         text: 'You do not have to solve the whole day at once.',
         author: 'Solace',
       });
-    return parts;
+    return parts.flatMap((part) => {
+      const parsed = messagePart.safeParse(part);
+      return parsed.success ? [parsed.data as Record<string, unknown>] : [];
+    });
   };
   const companionContext = async (userId: string) => {
     const user = await db.user.findUnique({
