@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Card, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
-import { awardXp } from '../src/api';
+import { awardXp, saveJournalEntry } from '../src/api';
 
 export default function Gratitude() {
   const t = useTheme();
@@ -47,6 +47,9 @@ export default function Gratitude() {
             disabled={!note.trim() || saved}
             onPress={() => {
               setSaved(true);
+              void saveJournalEntry(`Today I’m grateful for: ${note.trim()}`).catch(
+                () => undefined,
+              );
               void awardXp(
                 'gratitude',
                 15,

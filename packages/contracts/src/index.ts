@@ -23,6 +23,7 @@ export const chatRequest = z.object({
   conversationId: z.string().uuid().optional(),
   text: z.string().trim().min(1).max(4000),
 });
+export const journalEntryRequest = z.object({ text: z.string().trim().min(1).max(2000) });
 export const moodRequest = z.object({
   score: z.number().int().min(1).max(5),
   note: z.string().trim().max(1000).optional(),

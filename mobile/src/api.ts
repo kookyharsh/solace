@@ -223,6 +223,10 @@ export async function getTodayJournal() {
     summary: string | null;
   }>('/journal/today');
 }
+export async function saveJournalEntry(text: string) {
+  await ensureGuestSession();
+  return request('/journal', { method: 'POST', body: JSON.stringify({ text }) });
+}
 export async function deleteConversation(id: string) {
   await ensureGuestSession();
   const accessToken = await AsyncStorage.getItem('solace.accessToken');

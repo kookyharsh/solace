@@ -12,6 +12,7 @@ import {
   authResponse,
   conversationCreateRequest,
   chatRequest,
+  journalEntryRequest,
   moodRequest,
   xpEventRequest,
   deviceRequest,
@@ -590,6 +591,25 @@ export function createApp(
         messages,
         summary: messages.length ? 'A few moments from today, held gently.' : null,
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post('/journal', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = journalEntryRequest.parse(req.body);
+      const conversation = await db.conversation.create({
+        data: { userId: req.userId!, title: 'Today' },
+      });
+      const message = await db.message.create({
+        data: {
+          conversationId: conversation.id,
+          role: 'user',
+          source: 'journal',
+          parts: [{ type: 'text', text: input.text }],
+        },
+      });
+      res.status(201).json({ conversationId: conversation.id, message });
     } catch (error) {
       next(error);
     }
