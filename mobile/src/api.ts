@@ -48,3 +48,7 @@ export async function awardXp(type: string, amount: number, eventKey: string) {
     body: JSON.stringify({ type, amount, eventKey }),
   });
 }
+export async function getConversations() {
+  await ensureGuestSession();
+  return request<Array<{ id: string; title: string | null; updatedAt: string }>>('/conversations');
+}

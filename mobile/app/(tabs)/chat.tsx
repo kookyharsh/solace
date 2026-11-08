@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CompanionBlob } from '../../src/companion/CompanionBlob';
 import { Card, Chip, GradientBackground, IconButton } from '../../src/components/ui';
+import { router } from 'expo-router';
 import { useTheme } from '../../src/theme';
 import { sendChat } from '../../src/api';
 
@@ -98,6 +99,7 @@ export default function Chat() {
             </Text>
             <Text style={{ color: t.colors.muted }}>A gentle place to be heard</Text>
           </View>
+          <IconButton label="Chat history" icon="☰" onPress={() => router.push('/history')} />
         </View>
         <FlatList
           data={messages}
