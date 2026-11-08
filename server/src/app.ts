@@ -325,6 +325,18 @@ export function createApp(
       next(error);
     }
   });
+  app.delete('/conversations/:id', requireAuth(config), async (req, res, next) => {
+    try {
+      const result = await db.conversation.updateMany({
+        where: { id: String(req.params.id), userId: req.userId!, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      if (!result.count) throw new HttpError(404, 'NOT_FOUND', 'Conversation not found');
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  });
   app.post('/chat', requireAuth(config), async (req, res, next) => {
     try {
       const input = chatRequest.parse(req.body);

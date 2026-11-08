@@ -52,3 +52,11 @@ export async function getConversations() {
   await ensureGuestSession();
   return request<Array<{ id: string; title: string | null; updatedAt: string }>>('/conversations');
 }
+export async function deleteConversation(id: string) {
+  await ensureGuestSession();
+  const accessToken = await AsyncStorage.getItem('solace.accessToken');
+  await fetch(`${baseUrl}/conversations/${id}`, {
+    method: 'DELETE',
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+}

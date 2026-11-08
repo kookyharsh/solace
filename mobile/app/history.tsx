@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, Text } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getConversations } from '../src/api';
+import { deleteConversation, getConversations } from '../src/api';
 import { Card, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
 
@@ -42,8 +42,8 @@ export default function History() {
             keyExtractor={(item) => item.id}
             contentContainerStyle={{ gap: t.spacing.md }}
             renderItem={({ item }) => (
-              <Pressable onPress={() => router.replace('/(tabs)/chat')}>
-                <Card>
+              <Card>
+                <Pressable onPress={() => router.replace('/(tabs)/chat')}>
                   <Text
                     style={{
                       color: t.colors.ink,
@@ -56,8 +56,18 @@ export default function History() {
                   <Text style={{ color: t.colors.muted, marginTop: t.spacing.sm }}>
                     {new Date(item.updatedAt).toLocaleDateString()}
                   </Text>
-                </Card>
-              </Pressable>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() =>
+                    void deleteConversation(item.id).then(() =>
+                      setItems((current) => current.filter((entry) => entry.id !== item.id)),
+                    )
+                  }
+                >
+                  <Text style={{ color: '#B05A62', marginTop: t.spacing.md }}>Delete</Text>
+                </Pressable>
+              </Card>
             )}
           />
         )}
