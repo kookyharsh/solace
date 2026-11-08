@@ -5,10 +5,15 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts as useInter, Inter_400Regular } from '@expo-google-fonts/inter';
 import { useFonts as useNunito, Nunito_700Bold } from '@expo-google-fonts/nunito';
 import { Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { configureNotificationCategories } from '../src/notifications';
 
 export default function RootLayout() {
   const [inter] = useInter({ Inter_400Regular });
   const [nunito] = useNunito({ Nunito_700Bold });
+  useEffect(() => {
+    void configureNotificationCategories();
+  }, []);
   if (!inter || !nunito)
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
