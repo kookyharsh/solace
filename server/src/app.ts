@@ -31,7 +31,7 @@ import {
   type GoogleVerifier,
 } from './auth.js';
 import { errorHandler, HttpError } from './errors.js';
-import { generateCompanionReply } from './ai.js';
+import { generateCompanionReply, isCrisis } from './ai.js';
 
 type Db = Pick<
   PrismaClient,
@@ -54,6 +54,63 @@ export function createApp(
   db: Db,
   verifier: GoogleVerifier = makeGoogleVerifier(config.GOOGLE_CLIENT_ID),
 ) {
+  const richPartsFor = async (
+    text: string,
+    userId: string,
+    replyParts: Array<Record<string, unknown>>,
+  ) => {
+    if (replyParts.some((part) => part.type === 'crisis_card')) return replyParts;
+    const lower = text.toLowerCase();
+    const parts = [...replyParts];
+    if (lower.includes('mood') || lower.includes('week') || lower.includes('feeling')) {
+      const entries = await db.moodEntry.findMany({
+        where: { userId, createdAt: { gte: new Date(Date.now() - 7 * 86400000) }, deletedAt: null },
+        orderBy: { createdAt: 'asc' },
+      });
+      parts.push({
+        type: 'mood_chart',
+        range: 7,
+        entries: entries.map((entry) => ({ score: entry.score, createdAt: entry.createdAt })),
+      });
+    }
+    if (lower.includes('xp') || lower.includes('level') || lower.includes('streak')) {
+      const stats = await db.userStats.upsert({
+        where: { userId },
+        create: { userId },
+        update: {},
+      });
+      const xpForNext = 100 + (stats.level - 1) * 50;
+      parts.push({
+        type: 'xp_card',
+        level: stats.level,
+        xp: stats.xp,
+        xpIntoLevel: stats.xp % xpForNext,
+        xpForNext,
+      });
+      if (lower.includes('streak'))
+        parts.push({
+          type: 'streak_card',
+          current: stats.currentStreak,
+          longest: stats.longestStreak,
+        });
+    }
+    if (lower.includes('breath') || lower.includes('anxious') || lower.includes('ground')) {
+      parts.push({
+        type: 'activity_card',
+        kind: lower.includes('ground') ? 'grounding' : 'breathing',
+        title: lower.includes('ground') ? '5-4-3-2-1 grounding' : 'One-minute breathing',
+        durationMinutes: 1,
+        xp: 15,
+      });
+    }
+    if (lower.includes('quote') || lower.includes('inspire'))
+      parts.push({
+        type: 'quote_card',
+        text: 'You do not have to solve the whole day at once.',
+        author: 'Solace',
+      });
+    return parts;
+  };
   const app = express();
   app.disable('x-powered-by');
   app.use((req, res, next) => {
@@ -356,16 +413,20 @@ export function createApp(
         },
       });
       const reply = await generateCompanionReply(input.text, config);
-      const parts = reply.parts.length
-        ? reply.parts
-        : input.text.toLowerCase().includes('mood')
-          ? [{ type: 'mood_picker' }]
-          : [
-              {
-                type: 'quick_replies',
-                options: ['I feel low', 'I feel okay', 'I want to reflect'],
-              },
-            ];
+      const parts = await richPartsFor(
+        input.text,
+        req.userId!,
+        reply.parts.length
+          ? reply.parts
+          : input.text.toLowerCase().includes('mood')
+            ? [{ type: 'mood_picker' }]
+            : [
+                {
+                  type: 'quick_replies',
+                  options: ['I feel low', 'I feel okay', 'I want to reflect'],
+                },
+              ],
+      );
       const assistantMessage = await db.message.create({
         data: {
           conversationId: conversation.id,
@@ -397,14 +458,12 @@ export function createApp(
         },
       });
       const reply = await generateCompanionReply(input.text, config);
+      const parts = await richPartsFor(input.text, req.userId!, reply.parts);
       const assistant = await db.message.create({
         data: {
           conversationId: conversation.id,
           role: 'assistant',
-          parts: [
-            { type: 'text', text: reply.text },
-            ...reply.parts,
-          ] as unknown as Prisma.InputJsonValue,
+          parts: [{ type: 'text', text: reply.text }, ...parts] as unknown as Prisma.InputJsonValue,
           source: 'chat',
         },
       });
@@ -415,7 +474,7 @@ export function createApp(
       });
       for (const chunk of reply.text.match(/.{1,24}(?:\s|$)/g) ?? [reply.text])
         res.write(`event: delta\ndata: ${JSON.stringify({ text: chunk })}\n\n`);
-      res.write(`event: parts\ndata: ${JSON.stringify({ parts: reply.parts })}\n\n`);
+      res.write(`event: parts\ndata: ${JSON.stringify({ parts })}\n\n`);
       res.write(
         `event: done\ndata: ${JSON.stringify({ conversationId: conversation.id, messageId: assistant.id })}\n\n`,
       );

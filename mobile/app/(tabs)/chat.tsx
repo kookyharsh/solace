@@ -19,14 +19,14 @@ type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   text: string;
-  part?: 'mood_picker' | 'quick_replies';
+  parts?: Array<Record<string, unknown>>;
 };
 const starter: ChatMessage[] = [
   {
     id: 'welcome',
     role: 'assistant',
     text: 'Hi. I’m here with you. What feels present for you today?',
-    part: 'quick_replies',
+    parts: [{ type: 'quick_replies' }],
   },
 ];
 
@@ -44,16 +44,13 @@ export default function Chat() {
     void sendChat(text)
       .then((response) => {
         const textPart = response.assistantMessage.parts.find((part) => part.type === 'text');
-        const structured = response.assistantMessage.parts.find(
-          (part) => part.type === 'mood_picker' || part.type === 'quick_replies',
-        );
         setMessages((current) => [
           ...current,
           {
             id: `${Date.now()}-a`,
             role: 'assistant',
             text: textPart?.text ?? 'I’m here with you.',
-            part: structured?.type as ChatMessage['part'],
+            parts: response.assistantMessage.parts,
           },
         ]);
       })
@@ -67,7 +64,7 @@ export default function Chat() {
             text: mood
               ? 'Let’s check in gently. Which one is closest right now?'
               : 'Thank you for telling me. I’m listening. What part feels heaviest?',
-            part: mood ? 'mood_picker' : 'quick_replies',
+            parts: [{ type: mood ? 'mood_picker' : 'quick_replies' }],
           },
         ]);
       })
@@ -121,14 +118,14 @@ export default function Chat() {
                 >
                   {item.text}
                 </Text>
-                {item.part === 'quick_replies' && (
+                {item.parts?.some((part) => part.type === 'quick_replies') && (
                   <View style={{ gap: t.spacing.sm, marginTop: t.spacing.md }}>
                     {quick.map((option) => (
                       <Chip key={option} label={option} onPress={() => send(option)} />
                     ))}
                   </View>
                 )}
-                {item.part === 'mood_picker' && (
+                {item.parts?.some((part) => part.type === 'mood_picker') && (
                   <View
                     style={{ flexDirection: 'row', gap: t.spacing.sm, marginTop: t.spacing.md }}
                   >
@@ -143,6 +140,86 @@ export default function Chat() {
                     ))}
                   </View>
                 )}
+                {item.parts?.map((part, index) => {
+                  if (part.type === 'mood_chart') {
+                    const entries = Array.isArray(part.entries)
+                      ? (part.entries as Array<{ score: number }>).slice(-7)
+                      : [];
+                    return (
+                      <View key={`mood-${index}`} style={{ marginTop: t.spacing.md, gap: 6 }}>
+                        <Text style={{ color: t.colors.muted }}>Mood this week</Text>
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'flex-end',
+                            height: 58,
+                            gap: 5,
+                          }}
+                        >
+                          {entries.map((entry, entryIndex) => (
+                            <View
+                              key={`${entryIndex}-${entry.score}`}
+                              style={{ flex: 1, alignItems: 'center' }}
+                            >
+                              <View
+                                style={{
+                                  width: '100%',
+                                  height: Math.max(6, entry.score * 10),
+                                  backgroundColor: t.colors.secondary,
+                                  borderRadius: 6,
+                                }}
+                              />
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    );
+                  }
+                  if (part.type === 'xp_card')
+                    return (
+                      <Card key={`xp-${index}`} style={{ marginTop: t.spacing.md, gap: 4 }}>
+                        <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>
+                          Level {String(part.level)} · {String(part.xp)} XP
+                        </Text>
+                        <Text style={{ color: t.colors.muted }}>
+                          {String(part.xpIntoLevel)} / {String(part.xpForNext)} to the next level
+                        </Text>
+                      </Card>
+                    );
+                  if (part.type === 'streak_card')
+                    return (
+                      <Text
+                        key={`streak-${index}`}
+                        style={{ color: t.colors.primary, marginTop: t.spacing.md }}
+                      >
+                        ✨ {String(part.current)} day streak · best {String(part.longest)}
+                      </Text>
+                    );
+                  if (part.type === 'quote_card')
+                    return (
+                      <Card key={`quote-${index}`} style={{ marginTop: t.spacing.md }}>
+                        <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>
+                          {String(part.text)}
+                        </Text>
+                        <Text style={{ color: t.colors.muted, marginTop: 4 }}>
+                          — {String(part.author)}
+                        </Text>
+                      </Card>
+                    );
+                  if (part.type === 'activity_card')
+                    return (
+                      <Chip
+                        key={`activity-${index}`}
+                        label={`${String(part.title)} · +${String(part.xp)} XP`}
+                        onPress={() =>
+                          router.push(
+                            String(part.kind) === 'breathing' ? '/breathing' : '/grounding',
+                          )
+                        }
+                      />
+                    );
+                  return null;
+                })}
               </Card>
             </View>
           )}

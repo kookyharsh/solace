@@ -41,7 +41,9 @@ export async function sendChat(text: string, conversationId?: string) {
   await ensureGuestSession();
   return request<{
     conversationId: string;
-    assistantMessage: { parts: Array<{ type: string; text?: string; options?: string[] }> };
+    assistantMessage: {
+      parts: Array<{ type: string; text?: string; options?: string[]; [key: string]: unknown }>;
+    };
   }>('/chat', { method: 'POST', body: JSON.stringify({ text, conversationId }) });
 }
 export async function exportAccount() {
