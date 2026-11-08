@@ -4,15 +4,33 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
+import { awardXp, logMood } from '../src/api';
+import { Chip } from '../src/components/ui';
 
 export default function Breathing() {
   const t = useTheme();
   const [running, setRunning] = useState(false);
   const [phase, setPhase] = useState('Ready when you are');
+  const [seconds, setSeconds] = useState(60);
+  const [completed, setCompleted] = useState(false);
+  const [afterMood, setAfterMood] = useState<number>();
   const scale = useMemo(() => new Animated.Value(0.72), []);
   useEffect(() => {
     if (!running) return;
     let active = true;
+    const countdown = setInterval(() => {
+      setSeconds((value) => {
+        if (value <= 1) {
+          setRunning(false);
+          setCompleted(true);
+          void awardXp('breathing', 15, `breathing-${new Date().toISOString()}`).catch(
+            () => undefined,
+          );
+          return 0;
+        }
+        return value - 1;
+      });
+    }, 1000);
     const loop = () => {
       if (!active) return;
       setPhase('Breathe in…');
@@ -27,6 +45,7 @@ export default function Breathing() {
     loop();
     return () => {
       active = false;
+      clearInterval(countdown);
       scale.stopAnimation();
     };
   }, [running, scale]);
@@ -53,7 +72,7 @@ export default function Breathing() {
           <Text
             style={{ color: t.colors.muted, fontSize: t.typography.body, marginTop: t.spacing.sm }}
           >
-            {phase}
+            {completed ? 'You made space to breathe.' : `${phase} · ${seconds}s`}
           </Text>
         </View>
         <Animated.View
@@ -68,9 +87,33 @@ export default function Breathing() {
         />
         <View style={{ width: '100%', gap: t.spacing.md }}>
           <Button
-            label={running ? 'Pause' : 'Start 1 minute'}
-            onPress={() => setRunning((value) => !value)}
+            label={completed ? 'Breathe again' : running ? 'Pause' : 'Start 1 minute'}
+            onPress={() => {
+              if (completed) {
+                setCompleted(false);
+                setSeconds(60);
+              }
+              setRunning((value) => !value);
+            }}
           />
+          {completed && (
+            <Text style={{ color: t.colors.muted, textAlign: 'center' }}>How do you feel now?</Text>
+          )}
+          {completed && (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              {['😔', '🙁', '😐', '🙂', '😊'].map((emoji, index) => (
+                <Chip
+                  key={emoji}
+                  label={emoji}
+                  selected={afterMood === index + 1}
+                  onPress={() => {
+                    setAfterMood(index + 1);
+                    void logMood(index + 1).catch(() => undefined);
+                  }}
+                />
+              ))}
+            </View>
+          )}
           {!running && <Button label="Return to chat" onPress={() => router.back()} />}
         </View>
       </SafeAreaView>
