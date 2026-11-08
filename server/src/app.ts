@@ -16,9 +16,11 @@ import {
   deviceRequest,
   notificationReplyRequest,
   reminderRequest,
+  reminderUpdateRequest,
   memoryRequest,
   memoryUpdateRequest,
   openLoopRequest,
+  openLoopUpdateRequest,
   profileUpdateRequest,
   syncPushRequest,
 } from '@solace/contracts';
@@ -758,6 +760,31 @@ export function createApp(
       next(error);
     }
   });
+  app.patch('/reminders/:id', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = reminderUpdateRequest.parse(req.body);
+      const updated = await db.reminder.updateMany({
+        where: { id: String(req.params.id), userId: req.userId!, deletedAt: null },
+        data: input,
+      });
+      if (!updated.count) throw new HttpError(404, 'NOT_FOUND', 'Reminder not found');
+      res.json(await db.reminder.findUnique({ where: { id: String(req.params.id) } }));
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.delete('/reminders/:id', requireAuth(config), async (req, res, next) => {
+    try {
+      const updated = await db.reminder.updateMany({
+        where: { id: String(req.params.id), userId: req.userId!, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      if (!updated.count) throw new HttpError(404, 'NOT_FOUND', 'Reminder not found');
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  });
   app.get('/memory', requireAuth(config), async (req, res, next) => {
     try {
       const user = await db.user.findUnique({
@@ -840,6 +867,19 @@ export function createApp(
           data: { userId: req.userId!, text: input.text, dueAt: input.dueAt ?? null },
         }),
       );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.patch('/open-loops/:id', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = openLoopUpdateRequest.parse(req.body);
+      const updated = await db.openLoop.updateMany({
+        where: { id: String(req.params.id), userId: req.userId!, deletedAt: null },
+        data: input,
+      });
+      if (!updated.count) throw new HttpError(404, 'NOT_FOUND', 'Open loop not found');
+      res.json(await db.openLoop.findUnique({ where: { id: String(req.params.id) } }));
     } catch (error) {
       next(error);
     }

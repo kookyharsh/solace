@@ -47,6 +47,7 @@ export const reminderRequest = z.object({
   days: z.array(z.number().int().min(0).max(6)).max(7),
   enabled: z.boolean().optional(),
 });
+export const reminderUpdateRequest = reminderRequest.partial();
 export const memoryRequest = z.object({
   text: z.string().trim().min(1).max(500),
   category: z.enum(['fact', 'preference', 'habit']).default('fact'),
@@ -58,6 +59,11 @@ export const memoryUpdateRequest = z.object({
 export const openLoopRequest = z.object({
   text: z.string().trim().min(1).max(500),
   dueAt: z.coerce.date().optional(),
+});
+export const openLoopUpdateRequest = z.object({
+  text: z.string().trim().min(1).max(500).optional(),
+  dueAt: z.coerce.date().nullable().optional(),
+  status: z.enum(['open', 'asked', 'resolved']).optional(),
 });
 export const profileUpdateRequest = z.object({
   name: z.string().trim().max(120).nullable().optional(),

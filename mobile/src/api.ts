@@ -190,3 +190,23 @@ export async function registerDevice(expoPushToken: string, platform: 'android' 
     body: JSON.stringify({ expoPushToken, platform }),
   });
 }
+export async function getReminders() {
+  await ensureGuestSession();
+  return request<Array<{ id: string; title: string; time: string; enabled: boolean }>>(
+    '/reminders',
+  );
+}
+export async function createReminder(input: {
+  type: string;
+  title: string;
+  time: string;
+  days: number[];
+  enabled?: boolean;
+}) {
+  await ensureGuestSession();
+  return request('/reminders', { method: 'POST', body: JSON.stringify(input) });
+}
+export async function deleteReminder(id: string) {
+  await ensureGuestSession();
+  await request(`/reminders/${id}`, { method: 'DELETE' });
+}
