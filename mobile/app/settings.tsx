@@ -5,7 +5,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, GradientBackground } from '../src/components/ui';
 import { useTheme, useThemeMode } from '../src/theme';
-import { scheduleDefaultDailyReminders, scheduleGentleReminder } from '../src/notifications';
+import {
+  scheduleCustomReminder,
+  scheduleDefaultDailyReminders,
+  scheduleGentleReminder,
+} from '../src/notifications';
 import {
   createReminder,
   deleteAccount,
@@ -348,9 +352,14 @@ export default function Settings() {
                 time: reminderTime,
                 days: [0, 1, 2, 3, 4, 5, 6],
               })
-                .then((reminder) =>
-                  setReminders((current) => [...current, reminder as (typeof reminders)[number]]),
-                )
+                .then((reminder) => {
+                  setReminders((current) => [...current, reminder as (typeof reminders)[number]]);
+                  return scheduleCustomReminder(
+                    reminderTitle.trim(),
+                    reminderTime,
+                    [0, 1, 2, 3, 4, 5, 6],
+                  );
+                })
                 .catch(() =>
                   Alert.alert('Reminder unavailable', 'Check the title and time, then try again.'),
                 )

@@ -96,3 +96,28 @@ export async function scheduleDefaultDailyReminders(companionName = 'Your compan
   ]);
   return [morning, night];
 }
+
+export async function scheduleCustomReminder(title: string, time: string, days: number[]) {
+  const enabled = await requestNotifications();
+  if (!enabled) return [];
+  await configureNotificationCategories();
+  const [hour, minute] = time.split(':').map(Number);
+  return Promise.all(
+    (days.length ? days : [new Date().getDay()]).map((day) =>
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body: 'A small, caring reminder from your Solace space.',
+          categoryIdentifier: 'solace-reminder',
+          data: { route: '/settings', source: 'reminder' },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+          weekday: day === 0 ? 1 : day + 1,
+          hour,
+          minute,
+        },
+      }),
+    ),
+  );
+}
