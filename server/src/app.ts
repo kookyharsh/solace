@@ -279,6 +279,11 @@ export function createApp(
           });
     return { ...updated, ...computed };
   };
+  const unlockAchievement = async (userId: string, key: string) =>
+    db.achievement.create({ data: { userId, key } }).catch((error: { code?: string }) => {
+      if (error.code !== 'P2002') throw error;
+      return null;
+    });
   const mergeGuestRecords = async (guestId: string, accountId: string) => {
     await db.conversation.updateMany({ where: { userId: guestId }, data: { userId: accountId } });
     await db.moodEntry.updateMany({ where: { userId: guestId }, data: { userId: accountId } });
@@ -945,7 +950,13 @@ export function createApp(
           update: { xp: { increment: 10 } },
         });
         await updateActivityStreak(req.userId!, stats);
-        await refreshStatsLevel(stats);
+        const refreshed = await refreshStatsLevel(stats);
+        const moodCount = await db.moodEntry.count({
+          where: { userId: req.userId!, deletedAt: null },
+        });
+        if (moodCount >= 14) await unlockAchievement(req.userId!, 'mood_mapper');
+        if (refreshed.currentStreak >= 3) await unlockAchievement(req.userId!, 'three_day_streak');
+        if (refreshed.currentStreak >= 7) await unlockAchievement(req.userId!, 'seven_day_streak');
       }
       res.status(201).json({ ...mood, xpAwarded: Boolean(event) });
     } catch (error) {
@@ -1107,12 +1118,7 @@ export function createApp(
         const count = await db.xpEvent.count({ where: { userId: req.userId!, type: 'breathing' } });
         if (count >= 10) unlocks.add('breath_master');
       }
-      for (const key of unlocks)
-        await db.achievement
-          .create({ data: { userId: req.userId!, key } })
-          .catch((error: { code?: string }) => {
-            if (error.code !== 'P2002') throw error;
-          });
+      for (const key of unlocks) await unlockAchievement(req.userId!, key);
       res.json({ event, stats: leveled, levelUp: computed.level > streaked.level });
     } catch (error) {
       next(error);
