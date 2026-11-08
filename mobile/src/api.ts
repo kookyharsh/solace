@@ -274,6 +274,10 @@ export async function updateHabitPreference(key: string, enabled: boolean) {
     body: JSON.stringify({ enabled }),
   });
 }
+export async function getHabitPreferences() {
+  await ensureGuestSession();
+  return request<Array<{ key: string; enabled: boolean }>>('/habits');
+}
 export async function getProfile() {
   await ensureGuestSession();
   return request<{ memoryConsent: boolean; notificationConsent: boolean }>('/me');

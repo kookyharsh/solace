@@ -12,10 +12,12 @@ import {
   deleteMemory,
   deleteReminder,
   exportAccount,
+  getHabitPreferences,
   getMemories,
   getProfile,
   getReminders,
   signOut,
+  updateHabitPreference,
   updateProfile,
 } from '../src/api';
 
@@ -30,6 +32,7 @@ export default function Settings() {
   const [reminders, setReminders] = useState<
     Array<{ id: string; title: string; time: string; enabled: boolean }>
   >([]);
+  const [habits, setHabits] = useState<Array<{ key: string; enabled: boolean }>>([]);
   const [reminderTitle, setReminderTitle] = useState('A gentle moment');
   const [reminderTime, setReminderTime] = useState('20:00');
   const [memoryConsent, setMemoryConsent] = useState(false);
@@ -47,6 +50,9 @@ export default function Settings() {
       .catch(() => undefined);
     getReminders()
       .then(setReminders)
+      .catch(() => undefined);
+    getHabitPreferences()
+      .then(setHabits)
       .catch(() => undefined);
     getProfile()
       .then((profile) => {
@@ -140,6 +146,52 @@ export default function Settings() {
                 )
             }
           />
+        </Card>
+        <Card style={{ gap: t.spacing.md }}>
+          <Text
+            style={{
+              color: t.colors.ink,
+              fontSize: t.typography.title,
+              fontFamily: 'Nunito_700Bold',
+            }}
+          >
+            Check-in topics
+          </Text>
+          <Text style={{ color: t.colors.muted }}>
+            Choose the gentle nudges your companion may suggest.
+          </Text>
+          {[
+            ['water', 'Drink water'],
+            ['stretch', 'Stretch'],
+            ['walk', 'Short walk'],
+            ['screen_break', 'Screen break'],
+            ['wind_down', 'Wind down'],
+            ['gratitude', 'Gratitude'],
+          ].map(([key, label]) => {
+            const enabled = habits.find((item) => item.key === key)?.enabled ?? false;
+            return (
+              <View
+                key={key}
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: t.colors.ink, fontSize: t.typography.body }}>{label}</Text>
+                <Switch
+                  value={enabled}
+                  onValueChange={(value) => {
+                    setHabits((current) => [
+                      ...current.filter((item) => item.key !== key),
+                      { key, enabled: value },
+                    ]);
+                    void updateHabitPreference(key, value);
+                  }}
+                />
+              </View>
+            );
+          })}
         </Card>
         <Card style={{ gap: t.spacing.md }}>
           <Text
