@@ -535,28 +535,61 @@ export function createApp(
       const input = syncPushRequest.parse(req.body);
       for (const item of input.changes.conversations) {
         if (typeof item.id !== 'string') continue;
-        await db.conversation.upsert({
-          where: { id: item.id },
-          create: {
-            id: item.id,
-            userId: req.userId!,
-            title: typeof item.title === 'string' ? item.title : null,
-          },
-          update: { title: typeof item.title === 'string' ? item.title : undefined },
+        const owned = await db.conversation.findFirst({
+          where: { id: item.id, userId: req.userId! },
         });
+        if (owned)
+          await db.conversation.update({
+            where: { id: owned.id },
+            data: { title: typeof item.title === 'string' ? item.title : undefined },
+          });
+        else
+          await db.conversation
+            .create({
+              data: {
+                id: item.id,
+                userId: req.userId!,
+                title: typeof item.title === 'string' ? item.title : null,
+              },
+            })
+            .catch(() => undefined);
+      }
+      for (const item of input.changes.messages) {
+        if (
+          typeof item.id !== 'string' ||
+          typeof item.conversationId !== 'string' ||
+          typeof item.role !== 'string'
+        )
+          continue;
+        const conversation = await db.conversation.findFirst({
+          where: { id: item.conversationId, userId: req.userId!, deletedAt: null },
+        });
+        if (!conversation) continue;
+        const existing = await db.message.findFirst({
+          where: { id: item.id, conversationId: conversation.id },
+        });
+        const data = {
+          role: item.role,
+          source: typeof item.source === 'string' ? item.source : 'chat',
+          parts: (item.parts ?? []) as Prisma.InputJsonValue,
+        };
+        if (existing) await db.message.update({ where: { id: existing.id }, data });
+        else
+          await db.message
+            .create({ data: { id: item.id, conversationId: conversation.id, ...data } })
+            .catch(() => undefined);
       }
       for (const item of input.changes.moods) {
         if (typeof item.id !== 'string' || typeof item.score !== 'number') continue;
-        await db.moodEntry.upsert({
-          where: { id: item.id },
-          create: {
-            id: item.id,
-            userId: req.userId!,
-            score: item.score,
-            note: typeof item.note === 'string' ? item.note : null,
-          },
-          update: { score: item.score, note: typeof item.note === 'string' ? item.note : null },
+        const existing = await db.moodEntry.findFirst({
+          where: { id: item.id, userId: req.userId! },
         });
+        const data = { score: item.score, note: typeof item.note === 'string' ? item.note : null };
+        if (existing) await db.moodEntry.update({ where: { id: existing.id }, data });
+        else
+          await db.moodEntry
+            .create({ data: { id: item.id, userId: req.userId!, ...data } })
+            .catch(() => undefined);
       }
       res.json({ accepted: true, timestamp: new Date().toISOString() });
     } catch (error) {
