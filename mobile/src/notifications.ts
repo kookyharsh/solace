@@ -1,4 +1,6 @@
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
+import { registerDevice } from './api';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -34,6 +36,15 @@ export async function requestNotifications() {
   if (current.status !== 'granted') {
     const requested = await Notifications.requestPermissionsAsync();
     if (requested.status !== 'granted') return false;
+  }
+  try {
+    const token = await Notifications.getExpoPushTokenAsync();
+    await registerDevice(
+      token.data,
+      Platform.OS === 'android' ? 'android' : Platform.OS === 'ios' ? 'ios' : 'web',
+    );
+  } catch {
+    // Expo Go and development clients without push credentials can still use local reminders.
   }
   return true;
 }

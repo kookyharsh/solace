@@ -171,3 +171,10 @@ export async function deleteMemory(id: string) {
   await ensureGuestSession();
   await request(`/memory/${id}`, { method: 'DELETE' });
 }
+export async function registerDevice(expoPushToken: string, platform: 'android' | 'ios' | 'web') {
+  await ensureGuestSession();
+  return request('/devices', {
+    method: 'POST',
+    body: JSON.stringify({ expoPushToken, platform }),
+  });
+}
