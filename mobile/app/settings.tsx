@@ -6,7 +6,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
 import { scheduleGentleReminder } from '../src/notifications';
-import { deleteMemory, exportAccount, getMemories, updateProfile } from '../src/api';
+import {
+  createReminder,
+  deleteMemory,
+  deleteReminder,
+  exportAccount,
+  getMemories,
+  getReminders,
+  updateProfile,
+} from '../src/api';
 
 export default function Settings() {
   const t = useTheme();
@@ -15,6 +23,11 @@ export default function Settings() {
   const [memories, setMemories] = useState<Array<{ id: string; text: string; category: string }>>(
     [],
   );
+  const [reminders, setReminders] = useState<
+    Array<{ id: string; title: string; time: string; enabled: boolean }>
+  >([]);
+  const [reminderTitle, setReminderTitle] = useState('A gentle moment');
+  const [reminderTime, setReminderTime] = useState('20:00');
   useEffect(() => {
     AsyncStorage.getItem('solace.profile').then((raw) => {
       if (raw) {
@@ -25,6 +38,9 @@ export default function Settings() {
     });
     getMemories()
       .then(setMemories)
+      .catch(() => undefined);
+    getReminders()
+      .then(setReminders)
       .catch(() => undefined);
   }, []);
   const save = async () => {
@@ -145,6 +161,85 @@ export default function Settings() {
           ) : (
             <Text style={{ color: t.colors.muted }}>No saved memories yet.</Text>
           )}
+        </Card>
+        <Card style={{ gap: t.spacing.md }}>
+          <Text
+            style={{
+              color: t.colors.ink,
+              fontSize: t.typography.title,
+              fontFamily: 'Nunito_700Bold',
+            }}
+          >
+            Custom reminders
+          </Text>
+          <TextInput
+            accessibilityLabel="Reminder title"
+            value={reminderTitle}
+            onChangeText={setReminderTitle}
+            placeholder="Reminder title"
+            placeholderTextColor={t.colors.muted}
+            style={{
+              color: t.colors.ink,
+              backgroundColor: t.colors.background,
+              borderRadius: t.radii.md,
+              padding: t.spacing.md,
+            }}
+          />
+          <TextInput
+            accessibilityLabel="Reminder time"
+            value={reminderTime}
+            onChangeText={setReminderTime}
+            placeholder="HH:MM"
+            placeholderTextColor={t.colors.muted}
+            keyboardType="numbers-and-punctuation"
+            style={{
+              color: t.colors.ink,
+              backgroundColor: t.colors.background,
+              borderRadius: t.radii.md,
+              padding: t.spacing.md,
+            }}
+          />
+          <Button
+            label="Add reminder"
+            onPress={() =>
+              void createReminder({
+                type: 'custom',
+                title: reminderTitle.trim(),
+                time: reminderTime,
+                days: [0, 1, 2, 3, 4, 5, 6],
+              })
+                .then((reminder) =>
+                  setReminders((current) => [...current, reminder as (typeof reminders)[number]]),
+                )
+                .catch(() =>
+                  Alert.alert('Reminder unavailable', 'Check the title and time, then try again.'),
+                )
+            }
+          />
+          {reminders.map((reminder) => (
+            <View
+              key={reminder.id}
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: t.colors.ink }}>
+                {reminder.time} · {reminder.title}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() =>
+                  void deleteReminder(reminder.id).then(() =>
+                    setReminders((current) => current.filter((item) => item.id !== reminder.id)),
+                  )
+                }
+              >
+                <Text style={{ color: '#B05A62' }}>Delete</Text>
+              </Pressable>
+            </View>
+          ))}
         </Card>
         <Card>
           <Text style={{ color: t.colors.muted, lineHeight: 22 }}>
