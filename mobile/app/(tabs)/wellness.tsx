@@ -6,17 +6,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CompanionBlob } from '../../src/companion/CompanionBlob';
 import { Button, Card, Chip, GradientBackground, ProgressBar } from '../../src/components/ui';
 import { useTheme } from '../../src/theme';
-import { awardXp, logMood } from '../../src/api';
+import { awardXp, getGamification, logMood } from '../../src/api';
 
 export default function Wellness() {
   const t = useTheme();
   const [companionName, setCompanionName] = useState('Your companion');
   const [mood, setMood] = useState<number>();
   const [completed, setCompleted] = useState<string[]>([]);
+  const [stats, setStats] = useState({ level: 1, xp: 0, xpIntoLevel: 0, xpForNext: 100 });
   useEffect(() => {
     AsyncStorage.getItem('solace.profile').then((raw) => {
       if (raw) setCompanionName(JSON.parse(raw).companionName ?? 'Your companion');
     });
+    getGamification()
+      .then(setStats)
+      .catch(() => undefined);
   }, []);
   const toggle = (key: string) =>
     setCompleted((current) =>
@@ -43,6 +47,21 @@ export default function Wellness() {
             </View>
             <CompanionBlob size={72} state="proud" moodScore={mood} />
           </View>
+          <Card style={{ gap: t.spacing.md }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text
+                style={{
+                  color: t.colors.ink,
+                  fontFamily: 'Nunito_700Bold',
+                  fontSize: t.typography.title,
+                }}
+              >
+                Level {stats.level}
+              </Text>
+              <Text style={{ color: t.colors.primary }}>{stats.xp} XP</Text>
+            </View>
+            <ProgressBar value={(stats.xpIntoLevel / stats.xpForNext) * 100} />
+          </Card>
           <Card style={{ gap: t.spacing.md }}>
             <Text style={{ color: t.colors.muted }}>Today’s note</Text>
             <Text

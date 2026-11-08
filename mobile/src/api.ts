@@ -59,6 +59,12 @@ export async function awardXp(type: string, amount: number, eventKey: string) {
     body: JSON.stringify({ type, amount, eventKey }),
   });
 }
+export async function getGamification() {
+  await ensureGuestSession();
+  return request<{ level: number; xp: number; xpIntoLevel: number; xpForNext: number }>(
+    '/gamification/status',
+  );
+}
 export async function getConversations() {
   await ensureGuestSession();
   return request<Array<{ id: string; title: string | null; updatedAt: string }>>('/conversations');
