@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts as useInter, Inter_400Regular } from '@expo-google-fonts/inter';
@@ -7,12 +7,18 @@ import { useFonts as useNunito, Nunito_700Bold } from '@expo-google-fonts/nunito
 import { Text, View } from 'react-native';
 import { useEffect } from 'react';
 import { configureNotificationCategories } from '../src/notifications';
+import * as Notifications from 'expo-notifications';
 
 export default function RootLayout() {
   const [inter] = useInter({ Inter_400Regular });
   const [nunito] = useNunito({ Nunito_700Bold });
   useEffect(() => {
     void configureNotificationCategories();
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const route = response.notification.request.content.data?.route;
+      if (typeof route === 'string') router.push(route as never);
+    });
+    return () => subscription.remove();
   }, []);
   if (!inter || !nunito)
     return (
