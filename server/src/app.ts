@@ -232,6 +232,32 @@ export function createApp(
       },
     });
   };
+  const levelForXp = (xp: number) => {
+    let level = 1;
+    let remaining = Math.max(0, xp);
+    let xpForNext = 100;
+    while (remaining >= xpForNext) {
+      remaining -= xpForNext;
+      level += 1;
+      xpForNext = 100 + (level - 1) * 50;
+    }
+    return { level, xpIntoLevel: remaining, xpForNext };
+  };
+  const refreshStatsLevel = async (stats: {
+    userId: string;
+    xp: number;
+    level: number;
+    currentStreak: number;
+    longestStreak: number;
+    lastActiveDate: Date | null;
+  }) => {
+    const computed = levelForXp(stats.xp);
+    const updated =
+      computed.level === stats.level
+        ? stats
+        : await db.userStats.update({ where: { userId: stats.userId }, data: { level: computed.level } });
+    return { ...updated, ...computed };
+  };
   const mergeGuestRecords = async (guestId: string, accountId: string) => {
     await db.conversation.updateMany({ where: { userId: guestId }, data: { userId: accountId } });
     await db.moodEntry.updateMany({ where: { userId: guestId }, data: { userId: accountId } });
@@ -868,16 +894,7 @@ export function createApp(
           update: { xp: { increment: 10 } },
         });
         await updateActivityStreak(req.userId!, stats);
-        let level = 1;
-        let remaining = stats.xp;
-        let required = 100;
-        while (remaining >= required) {
-          remaining -= required;
-          level += 1;
-          required = 100 + (level - 1) * 50;
-        }
-        if (level !== stats.level)
-          await db.userStats.update({ where: { userId: req.userId! }, data: { level } });
+        await refreshStatsLevel(stats);
       }
       res.status(201).json({ ...mood, xpAwarded: Boolean(event) });
     } catch (error) {
@@ -908,8 +925,7 @@ export function createApp(
         create: { userId: req.userId! },
         update: {},
       });
-      const xpForNext = 100 + (stats.level - 1) * 50;
-      res.json({ ...stats, xpIntoLevel: stats.xp % xpForNext, xpForNext });
+      res.json({ ...stats, ...levelForXp(stats.xp) });
     } catch (error) {
       next(error);
     }
@@ -978,7 +994,8 @@ export function createApp(
             create: { userId: req.userId!, xp: 10 },
             update: { xp: { increment: 10 } },
           });
-          await updateActivityStreak(req.userId!, stats);
+          const streaked = await updateActivityStreak(req.userId!, stats);
+          await refreshStatsLevel({ ...streaked, userId: req.userId! });
         }
       }
       res.json({ ...row, xpAwarded });
@@ -1005,20 +1022,10 @@ export function createApp(
         update: { xp: { increment: input.amount } },
       });
       const streaked = await updateActivityStreak(req.userId!, stats);
-      let level = 1;
-      let remaining = streaked.xp;
-      let required = 100;
-      while (remaining >= required) {
-        remaining -= required;
-        level += 1;
-        required = 100 + (level - 1) * 50;
-      }
-      const leveled =
-        level === streaked.level
-          ? streaked
-          : await db.userStats.update({ where: { userId: req.userId! }, data: { level } });
+      const computed = levelForXp(streaked.xp);
+      const leveled = await refreshStatsLevel({ ...streaked, userId: req.userId! });
       const unlocks = new Set<string>(['first_words']);
-      if (level >= 5) unlocks.add('level_5');
+      if (computed.level >= 5) unlocks.add('level_5');
       if (input.type === 'breathing') {
         const count = await db.xpEvent.count({ where: { userId: req.userId!, type: 'breathing' } });
         if (count >= 10) unlocks.add('breath_master');
@@ -1029,7 +1036,7 @@ export function createApp(
           .catch((error: { code?: string }) => {
             if (error.code !== 'P2002') throw error;
           });
-      res.json({ event, stats: leveled, levelUp: level > streaked.level });
+      res.json({ event, stats: leveled, levelUp: computed.level > streaked.level });
     } catch (error) {
       next(error);
     }
