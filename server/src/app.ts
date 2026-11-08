@@ -55,6 +55,7 @@ type Db = Pick<
   | 'openLoop'
   | 'checkinPlan'
   | 'habitPreference'
+  | 'quote'
 >;
 export function createApp(
   config: Config,
@@ -760,9 +761,19 @@ export function createApp(
       next(error);
     }
   });
-  app.get('/quote/today', requireAuth(config), async (_req, res) =>
-    res.json({ text: 'You do not have to solve the whole day at once.', author: 'Solace' }),
-  );
+  app.get('/quote/today', requireAuth(config), async (_req, res, next) => {
+    try {
+      const quotes = await db.quote.findMany({ orderBy: { id: 'asc' } });
+      if (!quotes.length) {
+        res.json({ text: 'You do not have to solve the whole day at once.', author: 'Solace' });
+        return;
+      }
+      const index = Math.floor(Date.now() / 86400000) % quotes.length;
+      res.json(quotes[index]);
+    } catch (error) {
+      next(error);
+    }
+  });
   app.post('/devices', requireAuth(config), async (req, res, next) => {
     try {
       const input = deviceRequest.parse(req.body);
