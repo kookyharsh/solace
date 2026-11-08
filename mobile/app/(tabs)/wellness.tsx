@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CompanionBlob } from '../../src/companion/CompanionBlob';
 import { Button, Card, Chip, GradientBackground, ProgressBar } from '../../src/components/ui';
 import { useTheme } from '../../src/theme';
+import { logMood } from '../../src/api';
 
 export default function Wellness() {
   const t = useTheme();
@@ -101,6 +102,7 @@ export default function Wellness() {
                   onPress={() => {
                     setMood(index + 1);
                     toggle('mood');
+                    void logMood(index + 1).catch(() => undefined);
                   }}
                 />
               ))}

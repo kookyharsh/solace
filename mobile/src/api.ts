@@ -37,3 +37,7 @@ export async function exportAccount() {
   await ensureGuestSession();
   return request<Record<string, unknown>>('/me/export');
 }
+export async function logMood(score: number, note?: string) {
+  await ensureGuestSession();
+  return request('/mood', { method: 'POST', body: JSON.stringify({ score, note }) });
+}
