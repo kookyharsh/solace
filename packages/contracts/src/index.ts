@@ -132,6 +132,29 @@ const partQuote = z
 const partCrisis = z
   .object({ type: z.literal('crisis_card'), helplines: z.array(z.record(z.string(), z.string())) })
   .passthrough();
+const partBreathing = z
+  .object({
+    type: z.literal('breathing_card'),
+    title: z.string(),
+    pattern: z.string().optional(),
+    durationMinutes: z.number().positive().optional(),
+  })
+  .passthrough();
+const partCompanion = z
+  .object({
+    type: z.literal('companion'),
+    state: z.string(),
+    expression: z.string().optional(),
+    moodScore: z.number().optional(),
+  })
+  .passthrough();
+const partLevelUp = z
+  .object({
+    type: z.literal('level_up'),
+    level: z.number().int().positive(),
+    unlocked: z.array(z.string()).optional(),
+  })
+  .passthrough();
 export const messagePart = z.union([
   partText,
   partQuickReplies,
@@ -141,6 +164,9 @@ export const messagePart = z.union([
   partStreak,
   partActivity,
   partQuote,
+  partBreathing,
+  partCompanion,
+  partLevelUp,
   partCrisis,
 ]);
 export type UserResponse = z.infer<typeof userResponse>;
