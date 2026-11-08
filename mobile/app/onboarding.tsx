@@ -7,7 +7,7 @@ import { CompanionBlob } from '../src/companion/CompanionBlob';
 import { Button, Card, Chip, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
 import { useGoogleSignIn } from '../src/googleAuth';
-import { ensureGuestSession, updateHabitPreference, updateProfile } from '../src/api';
+import { awardXp, ensureGuestSession, updateHabitPreference, updateProfile } from '../src/api';
 
 export default function Onboarding() {
   const t = useTheme();
@@ -23,6 +23,7 @@ export default function Onboarding() {
   const [revealed, setRevealed] = useState(false);
   const [saving, setSaving] = useState(false);
   const complete = async () => {
+    await awardXp('onboarding_completed', 50, 'onboarding-completed').catch(() => undefined);
     await AsyncStorage.setItem('solace.onboarding', 'done');
     router.replace('/(tabs)/chat');
   };
