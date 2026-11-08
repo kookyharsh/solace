@@ -15,6 +15,8 @@ import {
   xpEventRequest,
   deviceRequest,
   reminderRequest,
+  memoryRequest,
+  openLoopRequest,
 } from '@solace/contracts';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type { Config } from './config.js';
@@ -41,6 +43,8 @@ type Db = Pick<
   | 'xpEvent'
   | 'device'
   | 'reminder'
+  | 'userMemory'
+  | 'openLoop'
 >;
 export function createApp(
   config: Config,
@@ -273,13 +277,11 @@ export function createApp(
           source: 'chat',
         },
       });
-      res
-        .status(200)
-        .set({
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive',
-        });
+      res.status(200).set({
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      });
       for (const chunk of reply.text.match(/.{1,24}(?:\s|$)/g) ?? [reply.text])
         res.write(`event: delta\ndata: ${JSON.stringify({ text: chunk })}\n\n`);
       res.write(`event: parts\ndata: ${JSON.stringify({ parts: reply.parts })}\n\n`);
@@ -396,6 +398,67 @@ export function createApp(
       res.status(201).json(
         await db.reminder.create({
           data: { userId: req.userId!, ...input, enabled: input.enabled ?? true },
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.get('/memory', requireAuth(config), async (req, res, next) => {
+    try {
+      const user = await db.user.findUnique({
+        where: { id: req.userId! },
+        select: { memoryConsent: true },
+      });
+      if (!user?.memoryConsent) {
+        res.json([]);
+        return;
+      }
+      res.json(
+        await db.userMemory.findMany({
+          where: { userId: req.userId!, deletedAt: null },
+          orderBy: { createdAt: 'desc' },
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post('/memory', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = memoryRequest.parse(req.body);
+      const user = await db.user.findUnique({
+        where: { id: req.userId! },
+        select: { memoryConsent: true },
+      });
+      if (!user?.memoryConsent) throw new HttpError(403, 'MEMORY_DISABLED', 'Memory is disabled');
+      res.status(201).json(
+        await db.userMemory.create({
+          data: { userId: req.userId!, text: input.text, category: input.category },
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.get('/open-loops', requireAuth(config), async (req, res, next) => {
+    try {
+      res.json(
+        await db.openLoop.findMany({
+          where: { userId: req.userId!, status: { in: ['open', 'asked'] }, deletedAt: null },
+          orderBy: { dueAt: 'asc' },
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post('/open-loops', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = openLoopRequest.parse(req.body);
+      res.status(201).json(
+        await db.openLoop.create({
+          data: { userId: req.userId!, text: input.text, dueAt: input.dueAt ?? null },
         }),
       );
     } catch (error) {
