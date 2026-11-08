@@ -15,6 +15,7 @@ import { Card, Chip, GradientBackground, IconButton } from '../../src/components
 import { router } from 'expo-router';
 import { useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../src/theme';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import {
   flushQueuedChatMessages,
   getConversationMessages,
@@ -45,6 +46,14 @@ export default function Chat() {
   const params = useLocalSearchParams<{ conversationId?: string }>();
   const [conversationId, setConversationId] = useState<string | undefined>(params.conversationId);
   const [companionName, setCompanionName] = useState('Your companion');
+  const [listening, setListening] = useState(false);
+  useSpeechRecognitionEvent('start', () => setListening(true));
+  useSpeechRecognitionEvent('end', () => setListening(false));
+  useSpeechRecognitionEvent('error', () => setListening(false));
+  useSpeechRecognitionEvent('result', (event) => {
+    const transcript = event.results[0]?.transcript;
+    if (transcript) setDraft(transcript);
+  });
   useEffect(() => {
     AsyncStorage.getItem('solace.profile').then((raw) => {
       if (raw) setCompanionName(JSON.parse(raw).companionName || 'Your companion');
@@ -284,6 +293,24 @@ export default function Chat() {
           }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm }}>
+            <IconButton
+              label={listening ? 'Stop voice input' : 'Start voice input'}
+              icon={listening ? '■' : '🎙'}
+              onPress={() => {
+                if (listening) ExpoSpeechRecognitionModule.stop();
+                else {
+                  void ExpoSpeechRecognitionModule.requestPermissionsAsync().then((permission) => {
+                    if (permission.granted)
+                      ExpoSpeechRecognitionModule.start({
+                        lang: 'en-IN',
+                        interimResults: true,
+                        continuous: false,
+                        addsPunctuation: true,
+                      });
+                  });
+                }
+              }}
+            />
             <TextInput
               accessibilityLabel="Message your companion"
               value={draft}

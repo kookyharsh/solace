@@ -19,7 +19,8 @@
       "expo-font",
       "expo-dev-client",
       "expo-notifications",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-speech-recognition"
     ],
     "experiments": {
       "typedRoutes": true
