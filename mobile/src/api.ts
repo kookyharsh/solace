@@ -12,27 +12,30 @@ async function rawRequest(path: string, init: RequestInit, accessToken: string |
     },
   });
 }
+async function refreshAccessToken() {
+  const refreshToken = await AsyncStorage.getItem('solace.refreshToken');
+  if (!refreshToken) return false;
+  const response = await rawRequest(
+    '/auth/refresh',
+    { method: 'POST', body: JSON.stringify({ refreshToken }) },
+    null,
+  );
+  if (!response.ok) {
+    await AsyncStorage.multiRemove(['solace.accessToken', 'solace.refreshToken']);
+    return false;
+  }
+  const tokens = (await response.json()) as { accessToken: string; refreshToken: string };
+  await AsyncStorage.multiSet([
+    ['solace.accessToken', tokens.accessToken],
+    ['solace.refreshToken', tokens.refreshToken],
+  ]);
+  return true;
+}
 async function request<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
   const accessToken = await AsyncStorage.getItem('solace.accessToken');
   const response = await rawRequest(path, init, accessToken);
   if (response.status === 401 && retry && path !== '/auth/refresh') {
-    const refreshToken = await AsyncStorage.getItem('solace.refreshToken');
-    if (refreshToken) {
-      const refreshed = await rawRequest(
-        '/auth/refresh',
-        { method: 'POST', body: JSON.stringify({ refreshToken }) },
-        null,
-      );
-      if (refreshed.ok) {
-        const tokens = (await refreshed.json()) as { accessToken: string; refreshToken: string };
-        await AsyncStorage.multiSet([
-          ['solace.accessToken', tokens.accessToken],
-          ['solace.refreshToken', tokens.refreshToken],
-        ]);
-        return request<T>(path, init, false);
-      }
-      await AsyncStorage.multiRemove(['solace.accessToken', 'solace.refreshToken']);
-    }
+    if (await refreshAccessToken()) return request<T>(path, init, false);
   }
   if (!response.ok) throw new Error(`API ${response.status}`);
   return response.json() as Promise<T>;
@@ -96,6 +99,8 @@ export async function streamChat(
     },
     body: JSON.stringify({ text, conversationId }),
   });
+  if (response.status === 401 && (await refreshAccessToken()))
+    return streamChat(text, conversationId, onDelta);
   if (!response.ok || !response.body) throw new Error(`API ${response.status}`);
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
