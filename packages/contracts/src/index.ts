@@ -58,6 +58,14 @@ export const profileUpdateRequest = z.object({
   memoryConsent: z.boolean().optional(),
   notificationConsent: z.boolean().optional(),
 });
+export const syncPushRequest = z.object({
+  lastPulledAt: z.coerce.date().nullable().optional(),
+  changes: z.object({
+    conversations: z.array(z.record(z.string(), z.unknown())).default([]),
+    messages: z.array(z.record(z.string(), z.unknown())).default([]),
+    moods: z.array(z.record(z.string(), z.unknown())).default([]),
+  }),
+});
 export const errorResponse = z.object({
   error: z.object({ code: z.string(), message: z.string() }),
 });

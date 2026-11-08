@@ -18,6 +18,7 @@ import {
   memoryRequest,
   openLoopRequest,
   profileUpdateRequest,
+  syncPushRequest,
 } from '@solace/contracts';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type { Config } from './config.js';
@@ -173,6 +174,65 @@ export function createApp(
       const input = profileUpdateRequest.parse(req.body);
       const user = await db.user.update({ where: { id: req.userId! }, data: input });
       res.json(userResponse.parse(user));
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.delete('/me', requireAuth(config), async (req, res, next) => {
+    try {
+      await db.user.delete({ where: { id: req.userId! } });
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post('/sync/pull', requireAuth(config), async (req, res, next) => {
+    try {
+      const since = req.body?.lastPulledAt ? new Date(req.body.lastPulledAt) : new Date(0);
+      const [conversations, messages, moods] = await Promise.all([
+        db.conversation.findMany({ where: { userId: req.userId!, updatedAt: { gt: since } } }),
+        db.message.findMany({
+          where: { conversation: { userId: req.userId! }, updatedAt: { gt: since } },
+        }),
+        db.moodEntry.findMany({ where: { userId: req.userId!, updatedAt: { gt: since } } }),
+      ]);
+      res.json({
+        changes: { conversations, messages, moods },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post('/sync/push', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = syncPushRequest.parse(req.body);
+      for (const item of input.changes.conversations) {
+        if (typeof item.id !== 'string') continue;
+        await db.conversation.upsert({
+          where: { id: item.id },
+          create: {
+            id: item.id,
+            userId: req.userId!,
+            title: typeof item.title === 'string' ? item.title : null,
+          },
+          update: { title: typeof item.title === 'string' ? item.title : undefined },
+        });
+      }
+      for (const item of input.changes.moods) {
+        if (typeof item.id !== 'string' || typeof item.score !== 'number') continue;
+        await db.moodEntry.upsert({
+          where: { id: item.id },
+          create: {
+            id: item.id,
+            userId: req.userId!,
+            score: item.score,
+            note: typeof item.note === 'string' ? item.note : null,
+          },
+          update: { score: item.score, note: typeof item.note === 'string' ? item.note : null },
+        });
+      }
+      res.json({ accepted: true, timestamp: new Date().toISOString() });
     } catch (error) {
       next(error);
     }
