@@ -9,7 +9,7 @@ mobile (Expo Router, UI tokens, offline repository) --> server (Express, auth, G
        |                                                     |
        +--> Expo Push + Google AuthSession                  +--> Google ID token verification
 packages/contracts ------------------------------------------+--> shared request/response schemas
-references/ -------------------------------------------------+--> preserved Bloub source and attribution
+mobile/src/companion/BLoub.LICENSE --------------------------+--> Bloub MIT attribution
 ```
 
 ## Requirements and setup
@@ -26,4 +26,4 @@ Run `pnpm install`, `pnpm db:generate`, `pnpm db:migrate`, and `pnpm dev`. Seed 
 
 ## Verification notes
 
-The repository checks cover workspace typechecking, linting, formatting, backend tests/builds, PostgreSQL migrations/seeding, and an Android JavaScript bundle export. A physical Android development build still requires an Android SDK/device or emulator; EAS, Google OAuth, Expo Push, and live Gemini responses require the corresponding external credentials. The supplied `references/` directory remains preserved until device/release verification is complete.
+The repository checks cover workspace typechecking, linting, formatting, backend tests/builds, PostgreSQL migrations/seeding, and an Android JavaScript bundle export. A physical Android development build still requires an Android SDK/device or emulator; EAS, Google OAuth, Expo Push, and live Gemini responses require the corresponding external credentials. The Bloub engine is shipped under `mobile/src/companion` with its MIT attribution.

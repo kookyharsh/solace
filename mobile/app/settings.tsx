@@ -398,8 +398,8 @@ export default function Settings() {
         </Card>
         <Card>
           <Text style={{ color: t.colors.muted, lineHeight: 22 }}>
-            Credits: companion animation engine adapted from Bloub (MIT License). The original
-            source is preserved in references/.
+            Credits: companion animation engine adapted from Bloub (MIT License). The attribution
+            notice is included with the shipped companion engine.
           </Text>
         </Card>
         <Button
