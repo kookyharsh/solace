@@ -823,6 +823,11 @@ export function createApp(
           scheduledAt: new Date(),
         },
       });
+      if (candidate.source === 'loop')
+        await db.openLoop.updateMany({
+          where: { userId: req.userId!, text: candidate.topic, status: 'open', deletedAt: null },
+          data: { status: 'asked' },
+        });
       res.json({ ...candidate, planId: plan.id });
     } catch (error) {
       next(error);
@@ -1238,6 +1243,10 @@ export function createApp(
           source: 'notification',
           parts: [{ type: 'text', text: input.text }],
         },
+      });
+      await db.openLoop.updateMany({
+        where: { userId: req.userId!, status: 'asked', deletedAt: null },
+        data: { status: 'resolved' },
       });
       void extractSignals(req.userId!, userMessage.id, input.text).catch(() => undefined);
       const profile = await companionContext(req.userId!);
