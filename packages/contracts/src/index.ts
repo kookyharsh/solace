@@ -10,6 +10,9 @@ export const userResponse = z.object({
   nickname: z.string().nullable(),
   companionName: z.string().nullable(),
   timezone: z.string(),
+  goals: z.array(z.string()).optional(),
+  wakeTime: z.string().nullable().optional(),
+  sleepTime: z.string().nullable().optional(),
 });
 export const authResponse = z.object({
   user: userResponse,
@@ -74,6 +77,17 @@ export const profileUpdateRequest = z.object({
   timezone: z.string().max(80).optional(),
   memoryConsent: z.boolean().optional(),
   notificationConsent: z.boolean().optional(),
+  goals: z.array(z.string().trim().min(1).max(40)).max(12).optional(),
+  wakeTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .nullable()
+    .optional(),
+  sleepTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .nullable()
+    .optional(),
 });
 export const syncPushRequest = z.object({
   lastPulledAt: z.coerce.date().nullable().optional(),

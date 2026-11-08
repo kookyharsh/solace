@@ -16,6 +16,9 @@ export default function Onboarding() {
   const [mood, setMood] = useState(3);
   const [memoryConsent, setMemoryConsent] = useState(false);
   const [notificationConsent, setNotificationConsent] = useState(false);
+  const [goals, setGoals] = useState<string[]>([]);
+  const [wakeTime, setWakeTime] = useState('08:00');
+  const [sleepTime, setSleepTime] = useState('22:00');
   const finish = async () => {
     const companionName = name.trim() || null;
     await ensureGuestSession();
@@ -24,6 +27,9 @@ export default function Onboarding() {
       nickname: nickname.trim() || null,
       memoryConsent,
       notificationConsent,
+      goals,
+      wakeTime,
+      sleepTime,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     }).catch(() => undefined);
     await AsyncStorage.multiSet([
@@ -36,6 +42,9 @@ export default function Onboarding() {
           mood,
           memoryConsent,
           notificationConsent,
+          goals,
+          wakeTime,
+          sleepTime,
         }),
       ],
     ]);
@@ -141,6 +150,70 @@ export default function Onboarding() {
                   onPress={() => setMood(index + 1)}
                 />
               ))}
+            </View>
+            <Text
+              style={{
+                color: t.colors.ink,
+                fontFamily: 'Nunito_700Bold',
+                fontSize: t.typography.title,
+              }}
+            >
+              What would you like gentle help with?
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.sm }}>
+              {['Stress', 'Sleep', 'Focus', 'Loneliness', 'Building habits'].map((goal) => {
+                const selected = goals.includes(goal);
+                return (
+                  <Chip
+                    key={goal}
+                    label={goal}
+                    selected={selected}
+                    onPress={() =>
+                      setGoals((current) =>
+                        selected ? current.filter((item) => item !== goal) : [...current, goal],
+                      )
+                    }
+                  />
+                );
+              })}
+            </View>
+            <View style={{ flexDirection: 'row', gap: t.spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: t.colors.muted, marginBottom: 4 }}>Wake time</Text>
+                <TextInput
+                  accessibilityLabel="Wake time"
+                  value={wakeTime}
+                  onChangeText={setWakeTime}
+                  placeholder="08:00"
+                  placeholderTextColor={t.colors.muted}
+                  keyboardType="numbers-and-punctuation"
+                  style={{
+                    color: t.colors.ink,
+                    backgroundColor: t.colors.background,
+                    borderRadius: t.radii.md,
+                    padding: t.spacing.md,
+                    fontSize: t.typography.body,
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: t.colors.muted, marginBottom: 4 }}>Sleep time</Text>
+                <TextInput
+                  accessibilityLabel="Sleep time"
+                  value={sleepTime}
+                  onChangeText={setSleepTime}
+                  placeholder="22:00"
+                  placeholderTextColor={t.colors.muted}
+                  keyboardType="numbers-and-punctuation"
+                  style={{
+                    color: t.colors.ink,
+                    backgroundColor: t.colors.background,
+                    borderRadius: t.radii.md,
+                    padding: t.spacing.md,
+                    fontSize: t.typography.body,
+                  }}
+                />
+              </View>
             </View>
             <View
               style={{

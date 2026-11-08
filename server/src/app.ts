@@ -266,7 +266,10 @@ export function createApp(
     const updated =
       computed.level === stats.level
         ? stats
-        : await db.userStats.update({ where: { userId: stats.userId }, data: { level: computed.level } });
+        : await db.userStats.update({
+            where: { userId: stats.userId },
+            data: { level: computed.level },
+          });
     return { ...updated, ...computed };
   };
   const mergeGuestRecords = async (guestId: string, accountId: string) => {

@@ -260,6 +260,9 @@ export async function updateProfile(profile: {
   timezone?: string;
   memoryConsent?: boolean;
   notificationConsent?: boolean;
+  goals?: string[];
+  wakeTime?: string | null;
+  sleepTime?: string | null;
 }) {
   await ensureGuestSession();
   return request('/me', { method: 'PATCH', body: JSON.stringify(profile) });

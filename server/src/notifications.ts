@@ -35,7 +35,11 @@ export async function dispatchContextualNotifications(
     include: {
       user: {
         include: {
-          openLoops: { where: { status: 'open', deletedAt: null }, orderBy: { createdAt: 'asc' }, take: 3 },
+          openLoops: {
+            where: { status: 'open', deletedAt: null },
+            orderBy: { createdAt: 'asc' },
+            take: 3,
+          },
           habitPreferences: { where: { enabled: true } },
           moods: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 3 },
         },
@@ -57,7 +61,8 @@ export async function dispatchContextualNotifications(
       month: '2-digit',
       day: '2-digit',
     }).formatToParts(now);
-    const part = (type: Intl.DateTimeFormatPartTypes) => local.find((item) => item.type === type)?.value ?? '0';
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      local.find((item) => item.type === type)?.value ?? '0';
     const localHour = Number(part('hour'));
     const localDay = `${part('year')}-${part('month')}-${part('day')}`;
     const dayStart = new Date(`${localDay}T00:00:00.000Z`);
@@ -66,7 +71,8 @@ export async function dispatchContextualNotifications(
     const sleepHour = Number((device.user.sleepTime || '20:00').split(':')[0]);
     if (localHour === wakeHour) type = 'morning';
     else if (localHour === sleepHour) type = 'night';
-    else if (localHour >= Math.max(10, wakeHour + 1) && localHour < Math.max(sleepHour, 19)) type = 'contextual';
+    else if (localHour >= Math.max(10, wakeHour + 1) && localHour < Math.max(sleepHour, 19))
+      type = 'contextual';
     if (!type) continue;
     const sent = await db.notificationLog.findFirst({
       where: { userId: device.userId, type, sentAt: { gte: dayStart } },
