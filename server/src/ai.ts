@@ -11,6 +11,13 @@ export function isCrisis(text: string) {
   return crisisPattern.test(text);
 }
 
+function localFallback(): CompanionReply {
+  return {
+    text: 'I’m here with you. Tell me a little more about what’s on your mind.',
+    parts: [{ type: 'quick_replies', options: ['I feel low', 'I feel okay', 'I want to reflect'] }],
+  };
+}
+
 export async function generateCompanionReply(
   text: string,
   config: Config,
@@ -30,41 +37,39 @@ export async function generateCompanionReply(
         },
       ],
     };
-  if (!config.GEMINI_API_KEY)
-    return {
-      text: 'I’m here with you. Tell me a little more about what’s on your mind.',
-      parts: [
-        { type: 'quick_replies', options: ['I feel low', 'I feel okay', 'I want to reflect'] },
-      ],
+  if (!config.GEMINI_API_KEY) return localFallback();
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${config.GEMINI_MODEL}:generateContent?key=${encodeURIComponent(config.GEMINI_API_KEY)}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text: `You are ${companionName?.trim() || 'an unnamed'} warm wellness companion. Keep replies to 1-4 short sentences, ask one question, never diagnose. Do not claim to be human. Use the user's language when possible. ${context ? `Known context (only use if relevant): ${context}` : ''} User says: ${text}`,
+                },
+              ],
+            },
+          ],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 240 },
+        }),
+      },
+    );
+    if (!response.ok) return localFallback();
+    const payload = (await response.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
     };
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${config.GEMINI_MODEL}:generateContent?key=${encodeURIComponent(config.GEMINI_API_KEY)}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: `You are ${companionName?.trim() || 'an unnamed'} warm wellness companion. Keep replies to 1-4 short sentences, ask one question, never diagnose. Do not claim to be human. Use the user's language when possible. ${context ? `Known context (only use if relevant): ${context}` : ''} User says: ${text}`,
-              },
-            ],
-          },
-        ],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 240 },
-      }),
-    },
-  );
-  if (!response.ok) throw new Error(`Gemini request failed: ${response.status}`);
-  const payload = (await response.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  const answer =
-    payload.candidates?.[0]?.content?.parts
-      ?.map((part) => part.text ?? '')
-      .join('')
-      .trim() || 'I’m here with you. What would feel supportive right now?';
-  return { text: answer, parts: [] };
+    const answer =
+      payload.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text ?? '')
+        .join('')
+        .trim() || 'I’m here with you. What would feel supportive right now?';
+    return { text: answer, parts: [] };
+  } catch {
+    return localFallback();
+  }
 }
