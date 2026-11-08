@@ -10,6 +10,7 @@ import {
   completeDailyChallenge,
   getAchievements,
   getDailyChallenges,
+  getDailyQuote,
   getGamification,
   getMood,
   logMood,
@@ -23,6 +24,7 @@ export default function Wellness() {
   const [stats, setStats] = useState({ level: 1, xp: 0, xpIntoLevel: 0, xpForNext: 100 });
   const [achievements, setAchievements] = useState<Array<{ key: string; unlockedAt: string }>>([]);
   const [moodHistory, setMoodHistory] = useState<Array<{ score: number; createdAt: string }>>([]);
+  const [quote, setQuote] = useState<{ text: string; author?: string | null }>();
   useEffect(() => {
     AsyncStorage.getItem('solace.profile').then((raw) => {
       if (raw) setCompanionName(JSON.parse(raw).companionName ?? 'Your companion');
@@ -38,6 +40,9 @@ export default function Wellness() {
       .catch(() => undefined);
     getDailyChallenges()
       .then((items) => setCompleted(items.filter((item) => item.completed).map((item) => item.key)))
+      .catch(() => undefined);
+    getDailyQuote()
+      .then(setQuote)
       .catch(() => undefined);
   }, []);
   const toggle = (key: string) =>
@@ -136,9 +141,9 @@ export default function Wellness() {
                 fontFamily: 'Nunito_700Bold',
               }}
             >
-              You do not have to solve the whole day at once.
+              {quote?.text ?? 'You do not have to solve the whole day at once.'}
             </Text>
-            <Text style={{ color: t.colors.muted }}>A quiet moment still counts.</Text>
+            <Text style={{ color: t.colors.muted }}>— {quote?.author ?? 'Solace'}</Text>
           </Card>
           <Card style={{ gap: t.spacing.md }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>

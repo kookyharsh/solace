@@ -180,6 +180,10 @@ export async function getMood(range = 7) {
   await ensureGuestSession();
   return request<Array<{ score: number; createdAt: string }>>(`/mood?range=${range}`);
 }
+export async function getDailyQuote() {
+  await ensureGuestSession();
+  return request<{ text: string; author?: string | null }>('/quote/today');
+}
 export async function awardXp(type: string, amount: number, eventKey: string) {
   await ensureGuestSession();
   return request('/gamification/event', {
