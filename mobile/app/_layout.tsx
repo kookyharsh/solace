@@ -8,6 +8,7 @@ import { Text, View } from 'react-native';
 import { useEffect } from 'react';
 import { configureNotificationCategories } from '../src/notifications';
 import * as Notifications from 'expo-notifications';
+import { submitNotificationReply } from '../src/api';
 
 export default function RootLayout() {
   const [inter] = useInter({ Inter_400Regular });
@@ -17,6 +18,10 @@ export default function RootLayout() {
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       const route = response.notification.request.content.data?.route;
       if (typeof route === 'string') router.push(route as never);
+      const action = response.actionIdentifier;
+      const reply = 'userText' in response ? response.userText : undefined;
+      if (action === 'reply' && typeof reply === 'string' && reply.trim())
+        void submitNotificationReply(reply).catch(() => undefined);
     });
     return () => subscription.remove();
   }, []);

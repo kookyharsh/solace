@@ -35,6 +35,11 @@ export const deviceRequest = z.object({
   expoPushToken: z.string().min(10).max(512),
   platform: z.enum(['android', 'ios', 'web']),
 });
+export const notificationReplyRequest = z.object({
+  text: z.string().trim().min(1).max(2000),
+  conversationId: z.string().uuid().optional(),
+  notificationType: z.string().trim().max(80).optional(),
+});
 export const reminderRequest = z.object({
   type: z.string().min(1).max(50),
   title: z.string().trim().min(1).max(120),

@@ -14,6 +14,7 @@ import {
   moodRequest,
   xpEventRequest,
   deviceRequest,
+  notificationReplyRequest,
   reminderRequest,
   memoryRequest,
   openLoopRequest,
@@ -590,6 +591,50 @@ export function createApp(
           update: { userId: req.userId!, platform: input.platform },
         }),
       );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post('/notifications/reply', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = notificationReplyRequest.parse(req.body);
+      const conversation = input.conversationId
+        ? await db.conversation.findFirst({
+            where: { id: input.conversationId, userId: req.userId!, deletedAt: null },
+          })
+        : await db.conversation.create({
+            data: { userId: req.userId!, title: 'Notification check-in' },
+          });
+      if (!conversation) throw new HttpError(404, 'NOT_FOUND', 'Conversation not found');
+      const userMessage = await db.message.create({
+        data: {
+          conversationId: conversation.id,
+          role: 'user',
+          source: 'notification',
+          parts: [{ type: 'text', text: input.text }],
+        },
+      });
+      const reply = await generateCompanionReply(input.text, config);
+      const parts = await richPartsFor(input.text, req.userId!, reply.parts);
+      const assistantMessage = await db.message.create({
+        data: {
+          conversationId: conversation.id,
+          role: 'assistant',
+          source: 'notification',
+          parts: [{ type: 'text', text: reply.text }, ...parts] as unknown as Prisma.InputJsonValue,
+        },
+      });
+      await db.xpEvent
+        .create({
+          data: {
+            userId: req.userId!,
+            type: 'notification_reply',
+            amount: 5,
+            eventKey: `notification-reply-${userMessage.id}`,
+          },
+        })
+        .catch(() => undefined);
+      res.status(201).json({ conversationId: conversation.id, userMessage, assistantMessage });
     } catch (error) {
       next(error);
     }

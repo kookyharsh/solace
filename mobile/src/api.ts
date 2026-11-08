@@ -87,3 +87,13 @@ export async function deleteConversation(id: string) {
     headers: { authorization: `Bearer ${accessToken}` },
   });
 }
+export async function submitNotificationReply(text: string, conversationId?: string) {
+  await ensureGuestSession();
+  return request<{
+    conversationId: string;
+    assistantMessage: { parts: Array<{ type: string; text?: string }> };
+  }>('/notifications/reply', {
+    method: 'POST',
+    body: JSON.stringify({ text, conversationId, notificationType: 'checkin' }),
+  });
+}

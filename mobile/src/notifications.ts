@@ -14,6 +14,7 @@ export async function configureNotificationCategories() {
     {
       identifier: 'reply',
       buttonTitle: 'Reply',
+      textInput: { submitButtonTitle: 'Send', placeholder: 'Reply to your companion…' },
       options: { opensAppToForeground: false, isAuthenticationRequired: false },
     },
     { identifier: 'open', buttonTitle: 'Open chat', options: { opensAppToForeground: true } },
