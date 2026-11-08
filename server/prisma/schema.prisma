@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+
+model User {
+  id String @id @default(uuid()) @db.Uuid
+  email String @unique
+  googleId String @unique
+  name String?
+  nickname String?
+  companionName String?
+  companionConfig Json?
+  timezone String @default("UTC")
+  wakeTime String?
+  sleepTime String?
+  goals String[]
+  memoryConsent Boolean @default(false)
+  notificationConsent Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  devices Device[]
+  conversations Conversation[]
+  moods MoodEntry[]
+  memories UserMemory[]
+  openLoops OpenLoop[]
+  habitPreferences HabitPreference[]
+  habitLogs HabitLog[]
+  checkinPlans CheckinPlan[]
+  xpEvents XpEvent[]
+  stats UserStats?
+  achievements Achievement[]
+  challenges DailyChallenge[]
+  reminders Reminder[]
+  notificationLogs NotificationLog[]
+  sessions RefreshSession[]
+}
+model RefreshSession {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, expiresAt])
+}
+model Device {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expoPushToken String @unique
+  platform String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Conversation {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title String?
+  summary String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  messages Message[]
+  @@index([userId, updatedAt])
+}
+model Message {
+  id String @id @default(uuid()) @db.Uuid
+  conversationId String @db.Uuid
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role String
+  parts Json
+  source String @default("chat")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  memories UserMemory[]
+  loops OpenLoop[]
+  @@index([conversationId, createdAt])
+}
+model MoodEntry {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score Int
+  note String?
+  provenance String @default("explicit")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  @@index([userId, createdAt])
+}
+model UserMemory {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text String
+  category String
+  sourceMessageId String? @db.Uuid
+  sourceMessage Message? @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  @@index([userId, category])
+}
+model OpenLoop {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text String
+  sourceMessageId String? @db.Uuid
+  sourceMessage Message? @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  dueAt DateTime?
+  status String @default("open")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  @@index([userId, status, dueAt])
+}
+model HabitPreference {
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key String
+  enabled Boolean @default(true)
+  mutedUntil DateTime?
+  updatedAt DateTime @updatedAt
+  @@id([userId, key])
+}
+model HabitLog {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key String
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}
+model CheckinPlan {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type String
+  source String
+  topic String?
+  scheduledAt DateTime
+  sentAt DateTime?
+  outcome String?
+  createdAt DateTime @default(now())
+  @@index([userId, scheduledAt])
+}
+model XpEvent {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type String
+  amount Int
+  eventKey String @unique
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}
+model UserStats {
+  userId String @id @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  xp Int @default(0)
+  level Int @default(1)
+  currentStreak Int @default(0)
+  longestStreak Int @default(0)
+  lastActiveDate DateTime? @db.Date
+  freezesUsedThisWeek Int @default(0)
+  updatedAt DateTime @updatedAt
+}
+model Achievement {
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key String
+  unlockedAt DateTime @default(now())
+  @@id([userId, key])
+}
+model DailyChallenge {
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date DateTime @db.Date
+  key String
+  completedAt DateTime?
+  @@id([userId, date, key])
+}
+model Reminder {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type String
+  title String
+  time String
+  days Int[]
+  enabled Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  @@index([userId, enabled])
+}
+model NotificationLog {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type String
+  sentAt DateTime @default(now())
+  openedAt DateTime?
+  repliedAt DateTime?
+  @@index([userId, sentAt])
+}
+model Quote {
+  id String @id @default(uuid()) @db.Uuid
+  text String
+  author String?
+  tags String[]
+}

@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.*.local
+dist/
+.expo/
+.metro/
+web-build/
+*.apk
+*.aab
+coverage/
+server/prisma/migrations
+server/.env
+references

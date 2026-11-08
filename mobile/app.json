@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "Solace AI",
+    "slug": "solace-ai",
+    "scheme": "solace",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "android": { "package": "ai.solace.app", "edgeToEdgeEnabled": true },
+    "ios": { "bundleIdentifier": "ai.solace.app" },
+    "plugins": ["expo-router", "expo-font", "expo-dev-client"],
+    "experiments": { "typedRoutes": true }
+  }
+}

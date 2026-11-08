@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: solace
+      POSTGRES_PASSWORD: solace
+      POSTGRES_DB: solace
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U solace -d solace']
+      interval: 5s
+      timeout: 3s
+      retries: 10

@@ -1,0 +1,272 @@
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  AccessibilityInfo,
+  Animated,
+  Modal,
+  Pressable,
+  Text,
+  View,
+  type ViewProps,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { haptics } from '../haptics';
+import { useTheme } from '../theme';
+
+export function Button({
+  label,
+  onPress,
+  disabled = false,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      disabled={disabled}
+      onPress={() => {
+        void haptics.tap();
+        onPress();
+      }}
+      style={{
+        backgroundColor: t.colors.primary,
+        borderRadius: t.radii.pill,
+        padding: t.spacing.md,
+        opacity: disabled ? 0.5 : 1,
+        alignItems: 'center',
+      }}
+    >
+      <Text style={{ color: '#FFFFFF', fontSize: t.typography.body, fontFamily: 'Nunito_700Bold' }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+export function Chip({
+  label,
+  selected = false,
+  onPress,
+}: {
+  label: string;
+  selected?: boolean;
+  onPress: () => void;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={() => {
+        void haptics.tap();
+        onPress();
+      }}
+      style={{
+        borderRadius: t.radii.pill,
+        backgroundColor: selected ? t.colors.primary : t.colors.surface,
+        paddingHorizontal: t.spacing.md,
+        paddingVertical: t.spacing.sm,
+      }}
+    >
+      <Text style={{ color: selected ? '#FFFFFF' : t.colors.ink, fontFamily: 'Inter_400Regular' }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+export function Card({ children, ...props }: ViewProps) {
+  const t = useTheme();
+  return (
+    <View
+      {...props}
+      style={[
+        {
+          backgroundColor: t.colors.surface,
+          borderRadius: t.radii.lg,
+          padding: t.spacing.lg,
+          ...t.shadows.card,
+        },
+        props.style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
+export function GradientBackground({ children }: { children: React.ReactNode }) {
+  const t = useTheme();
+  return (
+    <LinearGradient colors={[t.colors.background, t.colors.secondary + '35']} style={{ flex: 1 }}>
+      {children}
+    </LinearGradient>
+  );
+}
+export function Avatar({ size = 64 }: { size?: number }) {
+  const t = useTheme();
+  return (
+    <View
+      accessible
+      accessibilityLabel="Companion avatar placeholder"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: t.colors.primary,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View
+        style={{
+          width: size * 0.13,
+          height: size * 0.18,
+          borderRadius: size,
+          backgroundColor: '#FFFFFF',
+          position: 'absolute',
+          left: size * 0.33,
+        }}
+      />
+      <View
+        style={{
+          width: size * 0.13,
+          height: size * 0.18,
+          borderRadius: size,
+          backgroundColor: '#FFFFFF',
+          position: 'absolute',
+          right: size * 0.33,
+        }}
+      />
+    </View>
+  );
+}
+export function Sheet({
+  visible,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const t = useTheme();
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Close sheet"
+        onPress={onClose}
+        style={{ flex: 1, backgroundColor: '#0008', justifyContent: 'flex-end' }}
+      >
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          style={{
+            backgroundColor: t.colors.surface,
+            borderTopLeftRadius: t.radii.lg,
+            borderTopRightRadius: t.radii.lg,
+            padding: t.spacing.lg,
+          }}
+        >
+          {children}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+export function Toast({ message, visible }: { message: string; visible: boolean }) {
+  const t = useTheme();
+  if (!visible) return null;
+  return (
+    <View
+      accessibilityRole="alert"
+      style={{
+        position: 'absolute',
+        bottom: 80,
+        alignSelf: 'center',
+        padding: t.spacing.md,
+        borderRadius: t.radii.md,
+        backgroundColor: t.colors.ink,
+      }}
+    >
+      <Text style={{ color: t.colors.surface }}>{message}</Text>
+    </View>
+  );
+}
+export function ProgressBar({ value }: { value: number }) {
+  const t = useTheme();
+  return (
+    <View
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 0, max: 100, now: Math.max(0, Math.min(100, value)) }}
+      style={{
+        height: t.spacing.sm,
+        backgroundColor: t.colors.background,
+        borderRadius: t.radii.pill,
+        overflow: 'hidden',
+      }}
+    >
+      <View
+        style={{
+          width: `${Math.max(0, Math.min(100, value))}%`,
+          height: '100%',
+          backgroundColor: t.colors.primary,
+        }}
+      />
+    </View>
+  );
+}
+export function Skeleton({ width = 120, height = 16 }: { width?: number; height?: number }) {
+  const t = useTheme();
+  const opacity = useRef(new Animated.Value(0.4)).current;
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduce);
+    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduce);
+    return () => listener.remove();
+  }, []);
+  useEffect(() => {
+    if (reduce) {
+      opacity.setValue(0.6);
+      return;
+    }
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.8, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [reduce, opacity]);
+  return (
+    <Animated.View
+      accessibilityLabel="Loading"
+      style={{ width, height, borderRadius: t.radii.sm, backgroundColor: t.colors.muted, opacity }}
+    />
+  );
+}
+export function IconButton({
+  label,
+  icon,
+  onPress,
+}: {
+  label: string;
+  icon: string;
+  onPress: () => void;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={() => {
+        void haptics.tap();
+        onPress();
+      }}
+      style={{ padding: t.spacing.sm, borderRadius: t.radii.pill }}
+    >
+      <Text style={{ fontSize: t.typography.title, color: t.colors.ink }}>{icon}</Text>
+    </Pressable>
+  );
+}

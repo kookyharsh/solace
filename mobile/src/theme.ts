@@ -1,0 +1,47 @@
+import { useColorScheme } from 'react-native';
+
+const shared = {
+  spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 },
+  radii: { sm: 12, md: 20, lg: 28, pill: 999 },
+  typography: { display: 34, title: 24, body: 16, caption: 14 },
+  shadows: {
+    card: {
+      elevation: 3,
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+    },
+  },
+  mood: ['#8A8FB8', '#9DB4E0', '#BFD8C8', '#FFD98A', '#FFB59E'],
+} as const;
+export const themes = {
+  light: {
+    ...shared,
+    colors: {
+      background: '#FBF7F2',
+      surface: '#FFFFFF',
+      ink: '#2B2A33',
+      muted: '#7C7A8A',
+      primary: '#8B7CF6',
+      secondary: '#FFB59E',
+      accent: '#8FD6C0',
+      warning: '#FFD98A',
+    },
+  },
+  dark: {
+    ...shared,
+    colors: {
+      background: '#14121C',
+      surface: '#1E1B2B',
+      ink: '#F3F0FA',
+      muted: '#A6A0B6',
+      primary: '#A99CFF',
+      secondary: '#FFB59E',
+      accent: '#8FD6C0',
+      warning: '#FFD98A',
+    },
+  },
+};
+export function useTheme() {
+  return themes[useColorScheme() === 'dark' ? 'dark' : 'light'];
+}

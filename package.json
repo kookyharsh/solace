@@ -1,0 +1,17 @@
+{
+  "name": "solace-ai",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @solace/server --filter @solace/mobile dev",
+    "check": "pnpm -r typecheck && pnpm -r lint",
+    "build": "pnpm --filter @solace/server build",
+    "format:check": "prettier --check \"{mobile,server,packages}/**/*.{ts,tsx,json}\"",
+    "db:migrate": "pnpm --filter @solace/server exec prisma migrate deploy",
+    "db:generate": "pnpm --filter @solace/server exec prisma generate"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3"
+  }
+}
