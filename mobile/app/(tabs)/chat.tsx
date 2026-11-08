@@ -13,14 +13,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CompanionBlob } from '../../src/companion/CompanionBlob';
 import { Card, Chip, GradientBackground, IconButton } from '../../src/components/ui';
 import { router } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../src/theme';
-import { sendChat } from '../../src/api';
+import { getConversationMessages, sendChat } from '../../src/api';
 
 type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   text: string;
-  parts?: Array<Record<string, unknown>>;
+  parts?: Array<{ type: string; text?: string; [key: string]: unknown }>;
 };
 const starter: ChatMessage[] = [
   {
@@ -36,20 +37,39 @@ export default function Chat() {
   const [messages, setMessages] = useState(starter);
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
+  const params = useLocalSearchParams<{ conversationId?: string }>();
+  const [conversationId, setConversationId] = useState<string | undefined>(params.conversationId);
   const [companionName, setCompanionName] = useState('Your companion');
   useEffect(() => {
     AsyncStorage.getItem('solace.profile').then((raw) => {
       if (raw) setCompanionName(JSON.parse(raw).companionName || 'Your companion');
     });
   }, []);
+  useEffect(() => {
+    if (!params.conversationId) return;
+    setConversationId(params.conversationId);
+    void getConversationMessages(params.conversationId)
+      .then((items) => {
+        setMessages(
+          items.map((item) => ({
+            id: item.id,
+            role: item.role,
+            text: item.parts.find((part) => part.type === 'text')?.text ?? '',
+            parts: item.parts,
+          })),
+        );
+      })
+      .catch(() => undefined);
+  }, [params.conversationId]);
   const send = (value = draft) => {
     const text = value.trim();
     if (!text || thinking) return;
     setDraft('');
     setMessages((current) => [...current, { id: `${Date.now()}-u`, role: 'user', text }]);
     setThinking(true);
-    void sendChat(text)
+    void sendChat(text, conversationId)
       .then((response) => {
+        setConversationId(response.conversationId);
         const textPart = response.assistantMessage.parts.find((part) => part.type === 'text');
         setMessages((current) => [
           ...current,

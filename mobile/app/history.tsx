@@ -43,7 +43,14 @@ export default function History() {
             contentContainerStyle={{ gap: t.spacing.md }}
             renderItem={({ item }) => (
               <Card>
-                <Pressable onPress={() => router.replace('/(tabs)/chat')}>
+                <Pressable
+                  onPress={() =>
+                    router.replace({
+                      pathname: '/(tabs)/chat',
+                      params: { conversationId: item.id },
+                    })
+                  }
+                >
                   <Text
                     style={{
                       color: t.colors.ink,

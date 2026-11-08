@@ -79,6 +79,16 @@ export async function getConversations() {
   await ensureGuestSession();
   return request<Array<{ id: string; title: string | null; updatedAt: string }>>('/conversations');
 }
+export async function getConversationMessages(id: string) {
+  await ensureGuestSession();
+  return request<
+    Array<{
+      id: string;
+      role: 'user' | 'assistant';
+      parts: Array<{ type: string; text?: string; [key: string]: unknown }>;
+    }>
+  >(`/conversations/${id}/messages`);
+}
 export async function deleteConversation(id: string) {
   await ensureGuestSession();
   const accessToken = await AsyncStorage.getItem('solace.accessToken');
