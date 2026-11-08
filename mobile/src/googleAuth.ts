@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
-import { exchangeGoogleToken } from './api';
+import { mergeGuestWithGoogle } from './api';
 
 WebBrowser.maybeCompleteAuthSession();
 export function useGoogleSignIn(onSuccess: () => void) {
@@ -11,7 +11,7 @@ export function useGoogleSignIn(onSuccess: () => void) {
   });
   useEffect(() => {
     if (response?.type === 'success' && response.authentication?.idToken)
-      void exchangeGoogleToken(response.authentication.idToken)
+      void mergeGuestWithGoogle(response.authentication.idToken)
         .then(onSuccess)
         .catch(() => undefined);
   }, [onSuccess, response]);

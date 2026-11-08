@@ -37,6 +37,18 @@ export async function exchangeGoogleToken(idToken: string) {
   ]);
   return response;
 }
+export async function mergeGuestWithGoogle(idToken: string) {
+  await ensureGuestSession();
+  const response = await request<{ accessToken: string; refreshToken: string }>(
+    '/auth/guest-merge',
+    { method: 'POST', body: JSON.stringify({ idToken }) },
+  );
+  await AsyncStorage.multiSet([
+    ['solace.accessToken', response.accessToken],
+    ['solace.refreshToken', response.refreshToken],
+  ]);
+  return response;
+}
 export async function sendChat(text: string, conversationId?: string) {
   await ensureGuestSession();
   return request<{

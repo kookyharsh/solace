@@ -6,6 +6,7 @@ import pino from 'pino';
 import { randomUUID } from 'node:crypto';
 import {
   googleAuthRequest,
+  guestMergeRequest,
   refreshRequest,
   userResponse,
   authResponse,
@@ -259,6 +260,50 @@ export function createApp(
         },
       });
       res.status(201).json(
+        authResponse.parse({
+          user: userResponse.parse(user),
+          accessToken: await signAccessToken(user.id, config),
+          refreshToken,
+          tokenType: 'Bearer',
+          expiresIn: 900,
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post('/auth/guest-merge', requireAuth(config), async (req, res, next) => {
+    try {
+      const { idToken } = guestMergeRequest.parse(req.body);
+      let identity;
+      try {
+        identity = await verifier.verify(idToken);
+      } catch {
+        throw new HttpError(401, 'INVALID_GOOGLE_TOKEN', 'Google sign-in failed');
+      }
+      const existing = await db.user.findUnique({ where: { googleId: identity.sub } });
+      const guest = await db.user.findUnique({ where: { id: req.userId! } });
+      const user =
+        existing ??
+        (guest && guest.email.startsWith('guest-')
+          ? await db.user.update({
+              where: { id: guest.id },
+              data: { googleId: identity.sub, email: identity.email, name: identity.name },
+            })
+          : await db.user.upsert({
+              where: { googleId: identity.sub },
+              create: { googleId: identity.sub, email: identity.email, name: identity.name },
+              update: { email: identity.email, name: identity.name },
+            }));
+      const refreshToken = newRefreshToken();
+      await db.refreshSession.create({
+        data: {
+          userId: user.id,
+          tokenHash: tokenHash(refreshToken),
+          expiresAt: new Date(Date.now() + 30 * 86400000),
+        },
+      });
+      res.json(
         authResponse.parse({
           user: userResponse.parse(user),
           accessToken: await signAccessToken(user.id, config),

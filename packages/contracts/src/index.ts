@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const googleAuthRequest = z.object({ idToken: z.string().min(20).max(8192) });
+export const guestMergeRequest = googleAuthRequest;
 export const refreshRequest = z.object({ refreshToken: z.string().min(32).max(4096) });
 export const userResponse = z.object({
   id: z.string().uuid(),
