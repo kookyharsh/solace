@@ -41,3 +41,10 @@ export async function logMood(score: number, note?: string) {
   await ensureGuestSession();
   return request('/mood', { method: 'POST', body: JSON.stringify({ score, note }) });
 }
+export async function awardXp(type: string, amount: number, eventKey: string) {
+  await ensureGuestSession();
+  return request('/gamification/event', {
+    method: 'POST',
+    body: JSON.stringify({ type, amount, eventKey }),
+  });
+}

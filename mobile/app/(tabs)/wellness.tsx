@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CompanionBlob } from '../../src/companion/CompanionBlob';
 import { Button, Card, Chip, GradientBackground, ProgressBar } from '../../src/components/ui';
 import { useTheme } from '../../src/theme';
-import { logMood } from '../../src/api';
+import { awardXp, logMood } from '../../src/api';
 
 export default function Wellness() {
   const t = useTheme();
@@ -78,7 +78,18 @@ export default function Wellness() {
                 key={key}
                 label={`${completed.includes(key) ? '✓ ' : ''}${label}`}
                 selected={completed.includes(key)}
-                onPress={() => (key === 'breath' ? router.push('/breathing') : toggle(key))}
+                onPress={() => {
+                  if (key === 'breath') router.push('/breathing');
+                  else {
+                    toggle(key);
+                    if (!completed.includes(key))
+                      void awardXp(
+                        'daily_challenge',
+                        10,
+                        `${key}-${new Date().toISOString().slice(0, 10)}`,
+                      ).catch(() => undefined);
+                  }
+                }}
               />
             ))}
             <ProgressBar value={(completed.length / 3) * 100} />
