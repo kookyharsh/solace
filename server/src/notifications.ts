@@ -86,6 +86,17 @@ export async function dispatchContextualNotifications(
       openLoops: device.user.openLoops,
       lowMoodCount: device.user.moods.filter((mood) => mood.score <= 2).length,
       habits: device.user.habitPreferences.map((habit) => habit.key),
+      recentTopics: (
+        await db.checkinPlan.findMany({
+          where: {
+            userId: device.userId,
+            scheduledAt: { gte: new Date(now.getTime() - 3 * 86400000) },
+          },
+          select: { topic: true },
+        })
+      )
+        .map((plan) => plan.topic)
+        .filter((topic): topic is string => Boolean(topic)),
     });
     const body =
       type === 'morning'

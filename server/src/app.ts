@@ -805,10 +805,17 @@ export function createApp(
           orderBy: { key: 'asc' },
         }),
       ]);
+      const recentPlans = await db.checkinPlan.findMany({
+        where: { userId: req.userId!, scheduledAt: { gte: new Date(Date.now() - 3 * 86400000) } },
+        select: { topic: true },
+      });
       const candidate = chooseCheckin({
         openLoops,
         lowMoodCount: moods.filter((mood) => mood.score <= 2).length,
         habits: habits.map((habit) => habit.key),
+        recentTopics: recentPlans
+          .map((plan) => plan.topic)
+          .filter((topic): topic is string => Boolean(topic)),
       });
       if (!candidate) {
         res.json(null);

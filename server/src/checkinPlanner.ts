@@ -8,12 +8,14 @@ export function chooseCheckin(input: {
   openLoops: Array<{ text: string }>;
   lowMoodCount: number;
   habits: string[];
+  recentTopics?: string[];
 }): CheckinCandidate | null {
-  const loop = input.openLoops[0];
+  const recent = new Set((input.recentTopics ?? []).map((topic) => topic.toLowerCase()));
+  const loop = input.openLoops.find((candidate) => !recent.has(candidate.text.toLowerCase()));
   if (loop) return { source: 'loop', topic: loop.text, text: 'How did that go?' };
   if (input.lowMoodCount >= 2)
     return { source: 'mood', topic: 'mood', text: 'How is today feeling, at your own pace?' };
-  const habit = input.habits[0];
+  const habit = input.habits.find((candidate) => !recent.has(candidate.toLowerCase()));
   if (habit) {
     const labels: Record<string, string> = {
       water: 'Have you had some water?',
