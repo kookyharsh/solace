@@ -232,6 +232,17 @@ export function createApp(
       },
     });
   };
+  const userDateKey = async (userId: string, date = new Date()) => {
+    const user = await db.user.findUnique({ where: { id: userId }, select: { timezone: true } });
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: user?.timezone || 'UTC',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date);
+  };
+  const userDayStart = async (userId: string, date = new Date()) =>
+    new Date(`${await userDateKey(userId, date)}T00:00:00.000Z`);
   const levelForXp = (xp: number) => {
     let level = 1;
     let remaining = Math.max(0, xp);
@@ -874,7 +885,7 @@ export function createApp(
           provenance: 'explicit',
         },
       });
-      const day = new Date().toISOString().slice(0, 10);
+      const day = await userDateKey(req.userId!);
       const event = await db.xpEvent
         .create({
           data: {
@@ -944,8 +955,7 @@ export function createApp(
   });
   app.get('/challenges/today', requireAuth(config), async (req, res, next) => {
     try {
-      const date = new Date();
-      date.setUTCHours(0, 0, 0, 0);
+      const date = await userDayStart(req.userId!);
       const keys = ['mood', 'breath', 'gratitude'];
       const rows = await db.dailyChallenge.findMany({ where: { userId: req.userId!, date } });
       res.json(
@@ -963,8 +973,7 @@ export function createApp(
       const key = String(req.params.key);
       if (!['mood', 'breath', 'gratitude'].includes(key))
         throw new HttpError(400, 'INVALID_CHALLENGE', 'Unknown daily challenge');
-      const date = new Date();
-      date.setUTCHours(0, 0, 0, 0);
+      const date = await userDayStart(req.userId!);
       const existing = await db.dailyChallenge.findUnique({
         where: { userId_date_key: { userId: req.userId!, date, key } },
       });
