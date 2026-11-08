@@ -362,6 +362,17 @@ export function createApp(
       next(error);
     }
   });
+  app.post('/auth/signout', requireAuth(config), async (req, res, next) => {
+    try {
+      await db.refreshSession.updateMany({
+        where: { userId: req.userId!, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  });
   app.post('/auth/refresh', async (req, res, next) => {
     try {
       const { refreshToken } = refreshRequest.parse(req.body);

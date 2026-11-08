@@ -13,6 +13,7 @@ import {
   exportAccount,
   getMemories,
   getReminders,
+  signOut,
   updateProfile,
 } from '../src/api';
 
@@ -285,6 +286,10 @@ export default function Settings() {
             source is preserved in references/.
           </Text>
         </Card>
+        <Button
+          label="Sign out"
+          onPress={() => void signOut().then(() => router.replace('/onboarding'))}
+        />
         <Button label="Back" onPress={() => router.back()} />
       </SafeAreaView>
     </GradientBackground>

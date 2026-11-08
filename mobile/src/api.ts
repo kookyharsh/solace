@@ -75,6 +75,10 @@ export async function mergeGuestWithGoogle(idToken: string) {
   ]);
   return response;
 }
+export async function signOut() {
+  await request('/auth/signout', { method: 'POST', body: '{}' }).catch(() => undefined);
+  await AsyncStorage.multiRemove(['solace.accessToken', 'solace.refreshToken']);
+}
 export async function sendChat(text: string, conversationId?: string) {
   await ensureGuestSession();
   return request<{
