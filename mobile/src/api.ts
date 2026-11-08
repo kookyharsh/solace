@@ -33,3 +33,7 @@ export async function sendChat(text: string, conversationId?: string) {
     assistantMessage: { parts: Array<{ type: string; text?: string; options?: string[] }> };
   }>('/chat', { method: 'POST', body: JSON.stringify({ text, conversationId }) });
 }
+export async function exportAccount() {
+  await ensureGuestSession();
+  return request<Record<string, unknown>>('/me/export');
+}

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Text, TextInput } from 'react-native';
+import { Alert, Text, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
 import { scheduleGentleReminder } from '../src/notifications';
+import { exportAccount } from '../src/api';
 
 export default function Settings() {
   const t = useTheme();
@@ -83,6 +84,18 @@ export default function Settings() {
           <Button
             label="Schedule a gentle reminder"
             onPress={() => void scheduleGentleReminder()}
+          />
+          <Button
+            label="Export my data"
+            onPress={() =>
+              void exportAccount()
+                .then(() =>
+                  Alert.alert('Export ready', 'Your Solace data was prepared successfully.'),
+                )
+                .catch(() =>
+                  Alert.alert('Export unavailable', 'Please try again when you are online.'),
+                )
+            }
           />
         </Card>
         <Card>
