@@ -9,7 +9,7 @@
     "newArchEnabled": true,
     "android": { "package": "ai.solace.app", "edgeToEdgeEnabled": true },
     "ios": { "bundleIdentifier": "ai.solace.app" },
-    "plugins": ["expo-router", "expo-font", "expo-dev-client"],
+    "plugins": ["expo-router", "expo-font", "expo-dev-client", "expo-notifications"],
     "experiments": { "typedRoutes": true }
   }
 }

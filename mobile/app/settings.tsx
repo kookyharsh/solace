@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
+import { scheduleGentleReminder } from '../src/notifications';
 
 export default function Settings() {
   const t = useTheme();
@@ -79,6 +80,10 @@ export default function Settings() {
             }}
           />
           <Button label="Save changes" onPress={() => void save()} />
+          <Button
+            label="Schedule a gentle reminder"
+            onPress={() => void scheduleGentleReminder()}
+          />
         </Card>
         <Card>
           <Text style={{ color: t.colors.muted, lineHeight: 22 }}>
