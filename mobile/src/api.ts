@@ -2,9 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { offlineRepository } from './offline/repository';
 
 const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:4000';
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const accessToken = await AsyncStorage.getItem('solace.accessToken');
-  const response = await fetch(`${baseUrl}${path}`, {
+async function rawRequest(path: string, init: RequestInit, accessToken: string | null) {
+  return fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
       'content-type': 'application/json',
@@ -12,6 +11,29 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init.headers,
     },
   });
+}
+async function request<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
+  const accessToken = await AsyncStorage.getItem('solace.accessToken');
+  const response = await rawRequest(path, init, accessToken);
+  if (response.status === 401 && retry && path !== '/auth/refresh') {
+    const refreshToken = await AsyncStorage.getItem('solace.refreshToken');
+    if (refreshToken) {
+      const refreshed = await rawRequest(
+        '/auth/refresh',
+        { method: 'POST', body: JSON.stringify({ refreshToken }) },
+        null,
+      );
+      if (refreshed.ok) {
+        const tokens = (await refreshed.json()) as { accessToken: string; refreshToken: string };
+        await AsyncStorage.multiSet([
+          ['solace.accessToken', tokens.accessToken],
+          ['solace.refreshToken', tokens.refreshToken],
+        ]);
+        return request<T>(path, init, false);
+      }
+      await AsyncStorage.multiRemove(['solace.accessToken', 'solace.refreshToken']);
+    }
+  }
   if (!response.ok) throw new Error(`API ${response.status}`);
   return response.json() as Promise<T>;
 }
