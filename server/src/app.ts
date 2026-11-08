@@ -714,6 +714,18 @@ export function createApp(
         level === stats.level
           ? stats
           : await db.userStats.update({ where: { userId: req.userId! }, data: { level } });
+      const unlocks = new Set<string>(['first_words']);
+      if (level >= 5) unlocks.add('level_5');
+      if (input.type === 'breathing') {
+        const count = await db.xpEvent.count({ where: { userId: req.userId!, type: 'breathing' } });
+        if (count >= 10) unlocks.add('breath_master');
+      }
+      for (const key of unlocks)
+        await db.achievement
+          .create({ data: { userId: req.userId!, key } })
+          .catch((error: { code?: string }) => {
+            if (error.code !== 'P2002') throw error;
+          });
       res.json({ event, stats: leveled, levelUp: level > stats.level });
     } catch (error) {
       next(error);
