@@ -1023,6 +1023,7 @@ export function createApp(
         update: { completedAt: new Date() },
       });
       let xpAwarded = false;
+      let bonusAwarded = false;
       if (!existing?.completedAt) {
         const event = await db.xpEvent
           .create({
@@ -1047,7 +1048,34 @@ export function createApp(
           await refreshStatsLevel({ ...streaked, userId: req.userId! });
         }
       }
-      res.json({ ...row, xpAwarded });
+      const completedToday = await db.dailyChallenge.count({
+        where: { userId: req.userId!, date, completedAt: { not: null } },
+      });
+      if (completedToday === 3) {
+        const bonus = await db.xpEvent
+          .create({
+            data: {
+              userId: req.userId!,
+              type: 'daily_challenge_bonus',
+              amount: 20,
+              eventKey: `challenge-bonus-${date.toISOString().slice(0, 10)}-${req.userId}`,
+            },
+          })
+          .catch((error: { code?: string }) =>
+            error.code === 'P2002' ? null : Promise.reject(error),
+          );
+        if (bonus) {
+          bonusAwarded = true;
+          const stats = await db.userStats.upsert({
+            where: { userId: req.userId! },
+            create: { userId: req.userId!, xp: 20 },
+            update: { xp: { increment: 20 } },
+          });
+          const streaked = await updateActivityStreak(req.userId!, stats);
+          await refreshStatsLevel({ ...streaked, userId: req.userId! });
+        }
+      }
+      res.json({ ...row, xpAwarded, bonusAwarded });
     } catch (error) {
       next(error);
     }
