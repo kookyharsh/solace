@@ -272,8 +272,34 @@ export function createApp(
       update: { xp: { increment: 15 } },
     });
     const streaked = await updateActivityStreak(userId, stats);
-    await refreshStatsLevel({ ...streaked, userId });
+    const withStreakBonus = await awardStreakBonus(userId, streaked);
+    await refreshStatsLevel({ ...withStreakBonus, userId });
     return true;
+  };
+  const awardStreakBonus = async (
+    userId: string,
+    stats: {
+      xp: number;
+      level: number;
+      currentStreak: number;
+      longestStreak: number;
+      lastActiveDate: Date | null;
+    },
+  ) => {
+    const amount = Math.min(stats.currentStreak, 7) * 5;
+    if (amount <= 0) return stats;
+    const event = await db.xpEvent
+      .create({
+        data: {
+          userId,
+          type: 'streak_day',
+          amount,
+          eventKey: `streak-${await userDateKey(userId)}-${userId}`,
+        },
+      })
+      .catch((error: { code?: string }) => (error.code === 'P2002' ? null : Promise.reject(error)));
+    if (!event) return stats;
+    return db.userStats.update({ where: { userId }, data: { xp: { increment: amount } } });
   };
   const levelForXp = (xp: number) => {
     let level = 1;
@@ -976,8 +1002,9 @@ export function createApp(
           create: { userId: req.userId!, xp: 10 },
           update: { xp: { increment: 10 } },
         });
-        await updateActivityStreak(req.userId!, stats);
-        const refreshed = await refreshStatsLevel(stats);
+        const streaked = await updateActivityStreak(req.userId!, stats);
+        const withStreakBonus = await awardStreakBonus(req.userId!, streaked);
+        const refreshed = await refreshStatsLevel({ ...withStreakBonus, userId: req.userId! });
         const moodCount = await db.moodEntry.count({
           where: { userId: req.userId!, deletedAt: null },
         });
@@ -1083,7 +1110,8 @@ export function createApp(
             update: { xp: { increment: 10 } },
           });
           const streaked = await updateActivityStreak(req.userId!, stats);
-          await refreshStatsLevel({ ...streaked, userId: req.userId! });
+          const withStreakBonus = await awardStreakBonus(req.userId!, streaked);
+          await refreshStatsLevel({ ...withStreakBonus, userId: req.userId! });
         }
       }
       const completedToday = await db.dailyChallenge.count({
@@ -1110,7 +1138,8 @@ export function createApp(
             update: { xp: { increment: 20 } },
           });
           const streaked = await updateActivityStreak(req.userId!, stats);
-          await refreshStatsLevel({ ...streaked, userId: req.userId! });
+          const withStreakBonus = await awardStreakBonus(req.userId!, streaked);
+          await refreshStatsLevel({ ...withStreakBonus, userId: req.userId! });
         }
       }
       res.json({ ...row, xpAwarded, bonusAwarded });
@@ -1137,8 +1166,9 @@ export function createApp(
         update: { xp: { increment: input.amount } },
       });
       const streaked = await updateActivityStreak(req.userId!, stats);
-      const computed = levelForXp(streaked.xp);
-      const leveled = await refreshStatsLevel({ ...streaked, userId: req.userId! });
+      const withStreakBonus = await awardStreakBonus(req.userId!, streaked);
+      const computed = levelForXp(withStreakBonus.xp);
+      const leveled = await refreshStatsLevel({ ...withStreakBonus, userId: req.userId! });
       const unlocks = new Set<string>(['first_words']);
       if (computed.level >= 5) unlocks.add('level_5');
       if (input.type === 'breathing') {
