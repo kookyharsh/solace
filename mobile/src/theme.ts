@@ -1,5 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  createElement,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useColorScheme } from 'react-native';
 
 const shared = {
@@ -45,14 +52,26 @@ export const themes = {
   },
 };
 export type ThemeMode = 'system' | 'light' | 'dark';
-const ThemeModeContext = createContext<{ mode: ThemeMode; setMode: (mode: ThemeMode) => void }>({ mode: 'system', setMode: () => undefined });
+const ThemeModeContext = createContext<{ mode: ThemeMode; setMode: (mode: ThemeMode) => void }>({
+  mode: 'system',
+  setMode: () => undefined,
+});
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>('system');
-  useEffect(() => { AsyncStorage.getItem('solace.theme').then((value) => { if (value === 'light' || value === 'dark' || value === 'system') setModeState(value); }); }, []);
-  const setMode = (next: ThemeMode) => { setModeState(next); void AsyncStorage.setItem('solace.theme', next); };
-  return <ThemeModeContext.Provider value={{ mode, setMode }}>{children}</ThemeModeContext.Provider>;
+  useEffect(() => {
+    AsyncStorage.getItem('solace.theme').then((value) => {
+      if (value === 'light' || value === 'dark' || value === 'system') setModeState(value);
+    });
+  }, []);
+  const setMode = (next: ThemeMode) => {
+    setModeState(next);
+    void AsyncStorage.setItem('solace.theme', next);
+  };
+  return createElement(ThemeModeContext.Provider, { value: { mode, setMode } }, children);
 }
-export function useThemeMode() { return useContext(ThemeModeContext); }
+export function useThemeMode() {
+  return useContext(ThemeModeContext);
+}
 export function useTheme() {
   const system = useColorScheme();
   const { mode } = useThemeMode();
