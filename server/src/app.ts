@@ -1174,6 +1174,24 @@ export function createApp(
   app.post('/gamification/event', requireAuth(config), async (req, res, next) => {
     try {
       const input = xpEventRequest.parse(req.body);
+      const limits: Record<string, number> = {
+        breathing: 3,
+        grounding: 2,
+        gratitude: 2,
+        notification_reply: 3,
+        habit_checkin: 3,
+      };
+      const limit = limits[input.type];
+      if (limit) {
+        const dayStart = await userDayStart(req.userId!);
+        const used = await db.xpEvent.count({
+          where: { userId: req.userId!, type: input.type, createdAt: { gte: dayStart } },
+        });
+        if (used >= limit) {
+          res.json({ limited: true, limit, type: input.type });
+          return;
+        }
+      }
       const event = await db.xpEvent
         .create({ data: { userId: req.userId!, ...input } })
         .catch((error: { code?: string }) => {
@@ -1272,16 +1290,36 @@ export function createApp(
           parts: [{ type: 'text', text: reply.text }, ...parts] as unknown as Prisma.InputJsonValue,
         },
       });
-      await db.xpEvent
-        .create({
-          data: {
-            userId: req.userId!,
-            type: 'notification_reply',
-            amount: 5,
-            eventKey: `notification-reply-${userMessage.id}`,
-          },
-        })
-        .catch(() => undefined);
+      const notificationDay = await userDayStart(req.userId!);
+      const notificationReplies = await db.xpEvent.count({
+        where: {
+          userId: req.userId!,
+          type: 'notification_reply',
+          createdAt: { gte: notificationDay },
+        },
+      });
+      if (notificationReplies < 3) {
+        const event = await db.xpEvent
+          .create({
+            data: {
+              userId: req.userId!,
+              type: 'notification_reply',
+              amount: 5,
+              eventKey: `notification-reply-${userMessage.id}`,
+            },
+          })
+          .catch(() => null);
+        if (event) {
+          const stats = await db.userStats.upsert({
+            where: { userId: req.userId! },
+            create: { userId: req.userId!, xp: 5 },
+            update: { xp: { increment: 5 } },
+          });
+          const streaked = await updateActivityStreak(req.userId!, stats);
+          const withStreakBonus = await awardStreakBonus(req.userId!, streaked);
+          await refreshStatsLevel({ ...withStreakBonus, userId: req.userId! });
+        }
+      }
       res.status(201).json({ conversationId: conversation.id, userMessage, assistantMessage });
     } catch (error) {
       next(error);
