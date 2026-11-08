@@ -181,6 +181,26 @@ export function createApp(
       if (!exists) await db.openLoop.create({ data: { userId, text, sourceMessageId: messageId } });
     }
   };
+  const updateActivityStreak = async (
+    userId: string,
+    stats: { currentStreak: number; longestStreak: number; lastActiveDate: Date | null },
+  ) => {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const previous = stats.lastActiveDate ? new Date(stats.lastActiveDate) : null;
+    previous?.setUTCHours(0, 0, 0, 0);
+    if (previous?.getTime() === today.getTime()) return stats;
+    const currentStreak =
+      previous && today.getTime() - previous.getTime() === 86400000 ? stats.currentStreak + 1 : 1;
+    return db.userStats.update({
+      where: { userId },
+      data: {
+        currentStreak,
+        longestStreak: Math.max(stats.longestStreak, currentStreak),
+        lastActiveDate: today,
+      },
+    });
+  };
   const app = express();
   app.disable('x-powered-by');
   app.use((req, res, next) => {
@@ -709,6 +729,7 @@ export function createApp(
           create: { userId: req.userId!, xp: 10 },
           update: { xp: { increment: 10 } },
         });
+        await updateActivityStreak(req.userId!, stats);
         let level = 1;
         let remaining = stats.xp;
         let required = 100;
@@ -785,8 +806,9 @@ export function createApp(
         create: { userId: req.userId!, xp: input.amount },
         update: { xp: { increment: input.amount } },
       });
+      const streaked = await updateActivityStreak(req.userId!, stats);
       let level = 1;
-      let remaining = stats.xp;
+      let remaining = streaked.xp;
       let required = 100;
       while (remaining >= required) {
         remaining -= required;
@@ -794,8 +816,8 @@ export function createApp(
         required = 100 + (level - 1) * 50;
       }
       const leveled =
-        level === stats.level
-          ? stats
+        level === streaked.level
+          ? streaked
           : await db.userStats.update({ where: { userId: req.userId! }, data: { level } });
       const unlocks = new Set<string>(['first_words']);
       if (level >= 5) unlocks.add('level_5');
@@ -809,7 +831,7 @@ export function createApp(
           .catch((error: { code?: string }) => {
             if (error.code !== 'P2002') throw error;
           });
-      res.json({ event, stats: leveled, levelUp: level > stats.level });
+      res.json({ event, stats: leveled, levelUp: level > streaked.level });
     } catch (error) {
       next(error);
     }
