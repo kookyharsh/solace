@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CompanionBlob } from '../src/companion/CompanionBlob';
 import { Button, Card, Chip, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
+import { useGoogleSignIn } from '../src/googleAuth';
 
 export default function Onboarding() {
   const t = useTheme();
@@ -20,6 +21,7 @@ export default function Onboarding() {
     ]);
     router.replace('/(tabs)/chat');
   };
+  const google = useGoogleSignIn(() => void finish());
   return (
     <GradientBackground>
       <SafeAreaView style={{ flex: 1 }}>
@@ -120,7 +122,10 @@ export default function Onboarding() {
                 />
               ))}
             </View>
-            <Button label="Enter Solace" onPress={() => void finish()} />
+            <Button label="Enter as guest" onPress={() => void finish()} />
+            {google.ready && (
+              <Button label="Continue with Google" onPress={() => void google.signIn()} />
+            )}
           </Card>
         </KeyboardAvoidingView>
       </SafeAreaView>

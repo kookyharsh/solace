@@ -26,6 +26,17 @@ export async function ensureGuestSession() {
   ]);
   return true;
 }
+export async function exchangeGoogleToken(idToken: string) {
+  const response = await request<{ accessToken: string; refreshToken: string }>('/auth/google', {
+    method: 'POST',
+    body: JSON.stringify({ idToken }),
+  });
+  await AsyncStorage.multiSet([
+    ['solace.accessToken', response.accessToken],
+    ['solace.refreshToken', response.refreshToken],
+  ]);
+  return response;
+}
 export async function sendChat(text: string, conversationId?: string) {
   await ensureGuestSession();
   return request<{

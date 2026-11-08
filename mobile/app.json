@@ -7,9 +7,22 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "android": { "package": "ai.solace.app", "edgeToEdgeEnabled": true },
-    "ios": { "bundleIdentifier": "ai.solace.app" },
-    "plugins": ["expo-router", "expo-font", "expo-dev-client", "expo-notifications"],
-    "experiments": { "typedRoutes": true }
+    "android": {
+      "package": "ai.solace.app",
+      "edgeToEdgeEnabled": true
+    },
+    "ios": {
+      "bundleIdentifier": "ai.solace.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-dev-client",
+      "expo-notifications",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }
