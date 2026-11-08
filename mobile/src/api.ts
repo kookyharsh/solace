@@ -242,6 +242,10 @@ export async function updateProfile(profile: {
   await ensureGuestSession();
   return request('/me', { method: 'PATCH', body: JSON.stringify(profile) });
 }
+export async function getProfile() {
+  await ensureGuestSession();
+  return request<{ memoryConsent: boolean; notificationConsent: boolean }>('/me');
+}
 export async function getMemories() {
   await ensureGuestSession();
   return request<Array<{ id: string; text: string; category: string }>>('/memory');

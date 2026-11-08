@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, Switch, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import {
   deleteReminder,
   exportAccount,
   getMemories,
+  getProfile,
   getReminders,
   signOut,
   updateProfile,
@@ -30,6 +31,8 @@ export default function Settings() {
   >([]);
   const [reminderTitle, setReminderTitle] = useState('A gentle moment');
   const [reminderTime, setReminderTime] = useState('20:00');
+  const [memoryConsent, setMemoryConsent] = useState(false);
+  const [notificationConsent, setNotificationConsent] = useState(false);
   useEffect(() => {
     AsyncStorage.getItem('solace.profile').then((raw) => {
       if (raw) {
@@ -43,6 +46,12 @@ export default function Settings() {
       .catch(() => undefined);
     getReminders()
       .then(setReminders)
+      .catch(() => undefined);
+    getProfile()
+      .then((profile) => {
+        setMemoryConsent(profile.memoryConsent);
+        setNotificationConsent(profile.notificationConsent);
+      })
       .catch(() => undefined);
   }, []);
   const save = async () => {
@@ -130,6 +139,45 @@ export default function Settings() {
                 )
             }
           />
+        </Card>
+        <Card style={{ gap: t.spacing.md }}>
+          <Text
+            style={{
+              color: t.colors.ink,
+              fontSize: t.typography.title,
+              fontFamily: 'Nunito_700Bold',
+            }}
+          >
+            Privacy and notifications
+          </Text>
+          <View
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <Text style={{ color: t.colors.muted, flex: 1 }}>
+              Let your companion remember helpful facts
+            </Text>
+            <Switch
+              value={memoryConsent}
+              onValueChange={(value) => {
+                setMemoryConsent(value);
+                void updateProfile({ memoryConsent: value });
+              }}
+            />
+          </View>
+          <View
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <Text style={{ color: t.colors.muted, flex: 1 }}>
+              Allow gentle notifications and check-ins
+            </Text>
+            <Switch
+              value={notificationConsent}
+              onValueChange={(value) => {
+                setNotificationConsent(value);
+                void updateProfile({ notificationConsent: value });
+              }}
+            />
+          </View>
         </Card>
         <Card style={{ gap: t.spacing.md }}>
           <Text
