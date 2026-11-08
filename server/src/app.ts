@@ -488,7 +488,19 @@ export function createApp(
         create: { userId: req.userId!, xp: input.amount },
         update: { xp: { increment: input.amount } },
       });
-      res.json({ event, stats });
+      let level = 1;
+      let remaining = stats.xp;
+      let required = 100;
+      while (remaining >= required) {
+        remaining -= required;
+        level += 1;
+        required = 100 + (level - 1) * 50;
+      }
+      const leveled =
+        level === stats.level
+          ? stats
+          : await db.userStats.update({ where: { userId: req.userId! }, data: { level } });
+      res.json({ event, stats: leveled, levelUp: level > stats.level });
     } catch (error) {
       next(error);
     }
