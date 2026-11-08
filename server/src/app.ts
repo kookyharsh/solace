@@ -139,17 +139,15 @@ export function createApp(
           expiresAt: new Date(Date.now() + 30 * 86400000),
         },
       });
-      res
-        .status(201)
-        .json(
-          authResponse.parse({
-            user: userResponse.parse(user),
-            accessToken: await signAccessToken(user.id, config),
-            refreshToken,
-            tokenType: 'Bearer',
-            expiresIn: 900,
-          }),
-        );
+      res.status(201).json(
+        authResponse.parse({
+          user: userResponse.parse(user),
+          accessToken: await signAccessToken(user.id, config),
+          refreshToken,
+          tokenType: 'Bearer',
+          expiresIn: 900,
+        }),
+      );
     } catch (error) {
       next(error);
     }
@@ -211,6 +209,27 @@ export function createApp(
     try {
       await db.user.delete({ where: { id: req.userId! } });
       res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.get('/me/export', requireAuth(config), async (req, res, next) => {
+    try {
+      const user = await db.user.findUnique({
+        where: { id: req.userId! },
+        include: {
+          conversations: { include: { messages: true } },
+          moods: true,
+          memories: true,
+          openLoops: true,
+          reminders: true,
+          stats: true,
+          achievements: true,
+        },
+      });
+      if (!user) throw new HttpError(404, 'NOT_FOUND', 'Account not found');
+      res.setHeader('Content-Disposition', 'attachment; filename="solace-export.json"');
+      res.json(user);
     } catch (error) {
       next(error);
     }
