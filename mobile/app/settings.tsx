@@ -152,6 +152,12 @@ export default function Settings() {
             contact local emergency services or a trusted person.
           </Text>
         </Card>
+        <Card>
+          <Text style={{ color: t.colors.muted, lineHeight: 22 }}>
+            Credits: companion animation engine adapted from Bloub (MIT License). The original
+            source is preserved in references/.
+          </Text>
+        </Card>
         <Button label="Back" onPress={() => router.back()} />
       </SafeAreaView>
     </GradientBackground>
