@@ -50,6 +50,14 @@ export const openLoopRequest = z.object({
   text: z.string().trim().min(1).max(500),
   dueAt: z.coerce.date().optional(),
 });
+export const profileUpdateRequest = z.object({
+  name: z.string().trim().max(120).nullable().optional(),
+  nickname: z.string().trim().max(80).nullable().optional(),
+  companionName: z.string().trim().min(1).max(20).nullable().optional(),
+  timezone: z.string().max(80).optional(),
+  memoryConsent: z.boolean().optional(),
+  notificationConsent: z.boolean().optional(),
+});
 export const errorResponse = z.object({
   error: z.object({ code: z.string(), message: z.string() }),
 });

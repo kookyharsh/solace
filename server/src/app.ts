@@ -17,6 +17,7 @@ import {
   reminderRequest,
   memoryRequest,
   openLoopRequest,
+  profileUpdateRequest,
 } from '@solace/contracts';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type { Config } from './config.js';
@@ -162,6 +163,15 @@ export function createApp(
     try {
       const user = await db.user.findUnique({ where: { id: req.userId! } });
       if (!user) throw new HttpError(404, 'NOT_FOUND', 'Account not found');
+      res.json(userResponse.parse(user));
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.patch('/me', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = profileUpdateRequest.parse(req.body);
+      const user = await db.user.update({ where: { id: req.userId! }, data: input });
       res.json(userResponse.parse(user));
     } catch (error) {
       next(error);
