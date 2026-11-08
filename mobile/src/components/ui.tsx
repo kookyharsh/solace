@@ -11,6 +11,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { haptics } from '../haptics';
 import { useTheme } from '../theme';
+import { CompanionBlob } from '../companion/CompanionBlob';
 
 export function Button({
   label,
@@ -104,42 +105,7 @@ export function GradientBackground({ children }: { children: React.ReactNode }) 
   );
 }
 export function Avatar({ size = 64 }: { size?: number }) {
-  const t = useTheme();
-  return (
-    <View
-      accessible
-      accessibilityLabel="Companion avatar placeholder"
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        backgroundColor: t.colors.primary,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <View
-        style={{
-          width: size * 0.13,
-          height: size * 0.18,
-          borderRadius: size,
-          backgroundColor: '#FFFFFF',
-          position: 'absolute',
-          left: size * 0.33,
-        }}
-      />
-      <View
-        style={{
-          width: size * 0.13,
-          height: size * 0.18,
-          borderRadius: size,
-          backgroundColor: '#FFFFFF',
-          position: 'absolute',
-          right: size * 0.33,
-        }}
-      />
-    </View>
-  );
+  return <CompanionBlob size={size} state="idle" frozenAt={1} />;
 }
 export function Sheet({
   visible,
