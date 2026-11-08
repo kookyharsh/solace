@@ -49,6 +49,7 @@ export async function dispatchContextualNotifications(
   const messages: PushMessage[] = [];
   const users = new Set<string>();
   const userTypes = new Map<string, string>();
+  const plans = new Map<string, { source: string; topic: string; type: string }>();
   for (const device of devices) {
     if (!device.user.notificationConsent || users.has(device.userId)) continue;
     const timezone = device.user.timezone || 'UTC';
@@ -92,6 +93,11 @@ export async function dispatchContextualNotifications(
         : type === 'night'
           ? 'How was your day? A small reflection is enough.'
           : planned?.text || 'Thinking of you. How is today feeling?';
+    plans.set(device.userId, {
+      source: type === 'contextual' ? planned?.source || 'habit' : 'ritual',
+      topic: type === 'contextual' ? planned?.topic || 'daily check-in' : type,
+      type,
+    });
     messages.push({
       to: device.expoPushToken,
       title: companion,
@@ -105,6 +111,23 @@ export async function dispatchContextualNotifications(
     [...users].map((userId) =>
       db.notificationLog.create({ data: { userId, type: userTypes.get(userId) || 'contextual' } }),
     ),
+  );
+  await Promise.all(
+    [...users].map((userId) => {
+      const plan = plans.get(userId);
+      return plan
+        ? db.checkinPlan.create({
+            data: {
+              userId,
+              type: plan.type,
+              source: plan.source,
+              topic: plan.topic,
+              scheduledAt: now,
+              sentAt: now,
+            },
+          })
+        : Promise.resolve();
+    }),
   );
   return messages.length;
 }
