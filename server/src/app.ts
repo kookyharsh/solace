@@ -36,6 +36,7 @@ import {
 } from './auth.js';
 import { errorHandler, HttpError } from './errors.js';
 import { generateCompanionReply } from './ai.js';
+import { chooseCheckin } from './checkinPlanner.js';
 
 type Db = Pick<
   PrismaClient,
@@ -52,6 +53,8 @@ type Db = Pick<
   | 'reminder'
   | 'userMemory'
   | 'openLoop'
+  | 'checkinPlan'
+  | 'habitPreference'
 >;
 export function createApp(
   config: Config,
@@ -428,6 +431,54 @@ export function createApp(
         messages,
         summary: messages.length ? 'A few moments from today, held gently.' : null,
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.get('/checkins/next', requireAuth(config), async (req, res, next) => {
+    try {
+      const [openLoops, moods, habits] = await Promise.all([
+        db.openLoop.findMany({
+          where: { userId: req.userId!, status: 'open', deletedAt: null },
+          orderBy: { dueAt: 'asc' },
+          take: 3,
+        }),
+        db.moodEntry.findMany({
+          where: {
+            userId: req.userId!,
+            createdAt: { gte: new Date(Date.now() - 3 * 86400000) },
+            deletedAt: null,
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        db.habitPreference.findMany({
+          where: {
+            userId: req.userId!,
+            enabled: true,
+            OR: [{ mutedUntil: null }, { mutedUntil: { lt: new Date() } }],
+          },
+          orderBy: { key: 'asc' },
+        }),
+      ]);
+      const candidate = chooseCheckin({
+        openLoops,
+        lowMoodCount: moods.filter((mood) => mood.score <= 2).length,
+        habits: habits.map((habit) => habit.key),
+      });
+      if (!candidate) {
+        res.json(null);
+        return;
+      }
+      const plan = await db.checkinPlan.create({
+        data: {
+          userId: req.userId!,
+          type: 'contextual',
+          source: candidate.source,
+          topic: candidate.topic,
+          scheduledAt: new Date(),
+        },
+      });
+      res.json({ ...candidate, planId: plan.id });
     } catch (error) {
       next(error);
     }
