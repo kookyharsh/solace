@@ -125,6 +125,35 @@ export function createApp(
       next(error);
     }
   });
+  app.post('/auth/guest', async (_req, res, next) => {
+    try {
+      const guestId = randomUUID();
+      const user = await db.user.create({
+        data: { googleId: `guest-${guestId}`, email: `${guestId}@guest.solace.local`, name: null },
+      });
+      const refreshToken = newRefreshToken();
+      await db.refreshSession.create({
+        data: {
+          userId: user.id,
+          tokenHash: tokenHash(refreshToken),
+          expiresAt: new Date(Date.now() + 30 * 86400000),
+        },
+      });
+      res
+        .status(201)
+        .json(
+          authResponse.parse({
+            user: userResponse.parse(user),
+            accessToken: await signAccessToken(user.id, config),
+            refreshToken,
+            tokenType: 'Bearer',
+            expiresIn: 900,
+          }),
+        );
+    } catch (error) {
+      next(error);
+    }
+  });
   app.post('/auth/refresh', async (req, res, next) => {
     try {
       const { refreshToken } = refreshRequest.parse(req.body);

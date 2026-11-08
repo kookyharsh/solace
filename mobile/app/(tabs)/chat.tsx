@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CompanionBlob } from '../../src/companion/CompanionBlob';
 import { Card, Chip, GradientBackground, IconButton } from '../../src/components/ui';
 import { useTheme } from '../../src/theme';
+import { sendChat } from '../../src/api';
 
 type ChatMessage = {
   id: string;
@@ -39,21 +40,37 @@ export default function Chat() {
     setDraft('');
     setMessages((current) => [...current, { id: `${Date.now()}-u`, role: 'user', text }]);
     setThinking(true);
-    setTimeout(() => {
-      const mood = text.toLowerCase().includes('mood');
-      setMessages((current) => [
-        ...current,
-        {
-          id: `${Date.now()}-a`,
-          role: 'assistant',
-          text: mood
-            ? 'Let’s check in gently. Which one is closest right now?'
-            : 'Thank you for telling me. I’m listening. What part feels heaviest?',
-          part: mood ? 'mood_picker' : 'quick_replies',
-        },
-      ]);
-      setThinking(false);
-    }, 550);
+    void sendChat(text)
+      .then((response) => {
+        const textPart = response.assistantMessage.parts.find((part) => part.type === 'text');
+        const structured = response.assistantMessage.parts.find(
+          (part) => part.type === 'mood_picker' || part.type === 'quick_replies',
+        );
+        setMessages((current) => [
+          ...current,
+          {
+            id: `${Date.now()}-a`,
+            role: 'assistant',
+            text: textPart?.text ?? 'I’m here with you.',
+            part: structured?.type as ChatMessage['part'],
+          },
+        ]);
+      })
+      .catch(() => {
+        const mood = text.toLowerCase().includes('mood');
+        setMessages((current) => [
+          ...current,
+          {
+            id: `${Date.now()}-a`,
+            role: 'assistant',
+            text: mood
+              ? 'Let’s check in gently. Which one is closest right now?'
+              : 'Thank you for telling me. I’m listening. What part feels heaviest?',
+            part: mood ? 'mood_picker' : 'quick_replies',
+          },
+        ]);
+      })
+      .finally(() => setThinking(false));
   };
   const quick = useMemo(() => ['I feel low', 'I feel okay', 'I want to reflect'], []);
   return (
