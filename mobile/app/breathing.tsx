@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
-import { awardXp, logMood } from '../src/api';
+import { awardXp, completeDailyChallenge, logMood } from '../src/api';
 import { Chip } from '../src/components/ui';
 
 export default function Breathing() {
@@ -23,6 +23,7 @@ export default function Breathing() {
         if (value <= 1) {
           setRunning(false);
           setCompleted(true);
+          void completeDailyChallenge('breath').catch(() => undefined);
           void awardXp('breathing', 15, `breathing-${new Date().toISOString()}`).catch(
             () => undefined,
           );

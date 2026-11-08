@@ -949,12 +949,39 @@ export function createApp(
         throw new HttpError(400, 'INVALID_CHALLENGE', 'Unknown daily challenge');
       const date = new Date();
       date.setUTCHours(0, 0, 0, 0);
+      const existing = await db.dailyChallenge.findUnique({
+        where: { userId_date_key: { userId: req.userId!, date, key } },
+      });
       const row = await db.dailyChallenge.upsert({
         where: { userId_date_key: { userId: req.userId!, date, key } },
         create: { userId: req.userId!, date, key, completedAt: new Date() },
         update: { completedAt: new Date() },
       });
-      res.json(row);
+      let xpAwarded = false;
+      if (!existing?.completedAt) {
+        const event = await db.xpEvent
+          .create({
+            data: {
+              userId: req.userId!,
+              type: 'daily_challenge',
+              amount: 10,
+              eventKey: `challenge-${date.toISOString().slice(0, 10)}-${key}-${req.userId}`,
+            },
+          })
+          .catch((error: { code?: string }) =>
+            error.code === 'P2002' ? null : Promise.reject(error),
+          );
+        if (event) {
+          xpAwarded = true;
+          const stats = await db.userStats.upsert({
+            where: { userId: req.userId! },
+            create: { userId: req.userId!, xp: 10 },
+            update: { xp: { increment: 10 } },
+          });
+          await updateActivityStreak(req.userId!, stats);
+        }
+      }
+      res.json({ ...row, xpAwarded });
     } catch (error) {
       next(error);
     }

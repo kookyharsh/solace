@@ -7,7 +7,6 @@ import { CompanionBlob } from '../../src/companion/CompanionBlob';
 import { Button, Card, Chip, GradientBackground, ProgressBar } from '../../src/components/ui';
 import { useTheme } from '../../src/theme';
 import {
-  awardXp,
   completeDailyChallenge,
   getAchievements,
   getDailyChallenges,
@@ -168,12 +167,6 @@ export default function Wellness() {
                   else {
                     toggle(key);
                     void completeDailyChallenge(key).catch(() => undefined);
-                    if (!completed.includes(key))
-                      void awardXp(
-                        'daily_challenge',
-                        10,
-                        `${key}-${new Date().toISOString().slice(0, 10)}`,
-                      ).catch(() => undefined);
                   }
                 }}
               />
@@ -199,6 +192,7 @@ export default function Wellness() {
                   onPress={() => {
                     setMood(index + 1);
                     toggle('mood');
+                    void completeDailyChallenge('mood').catch(() => undefined);
                     void logMood(index + 1).catch(() => undefined);
                   }}
                 />
