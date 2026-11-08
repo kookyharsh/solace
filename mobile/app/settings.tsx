@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, GradientBackground } from '../src/components/ui';
 import { useTheme, useThemeMode } from '../src/theme';
-import { scheduleGentleReminder } from '../src/notifications';
+import { scheduleDefaultDailyReminders, scheduleGentleReminder } from '../src/notifications';
 import {
   createReminder,
   deleteMemory,
@@ -112,6 +112,10 @@ export default function Settings() {
           <Button
             label="Schedule a gentle reminder"
             onPress={() => void scheduleGentleReminder()}
+          />
+          <Button
+            label="Enable morning + night check-ins"
+            onPress={() => void scheduleDefaultDailyReminders(name.trim() || 'Your companion')}
           />
           <Button
             label="Export my data"

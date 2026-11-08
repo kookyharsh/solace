@@ -70,3 +70,29 @@ export async function scheduleGentleReminder(
     },
   });
 }
+export async function scheduleDefaultDailyReminders(companionName = 'Your companion') {
+  const enabled = await requestNotifications();
+  if (!enabled) return [];
+  await configureNotificationCategories();
+  const [morning, night] = await Promise.all([
+    Notifications.scheduleNotificationAsync({
+      content: {
+        title: companionName,
+        body: 'A gentle morning check-in, whenever you are ready.',
+        categoryIdentifier: 'solace-checkin',
+        data: { route: '/(tabs)/chat', source: 'notification' },
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 9, minute: 0 },
+    }),
+    Notifications.scheduleNotificationAsync({
+      content: {
+        title: companionName,
+        body: 'How was your day? A small reflection is enough.',
+        categoryIdentifier: 'solace-checkin',
+        data: { route: '/(tabs)/chat', source: 'notification' },
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 20, minute: 0 },
+    }),
+  ]);
+  return [morning, night];
+}
