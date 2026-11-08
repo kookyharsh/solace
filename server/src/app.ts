@@ -122,12 +122,18 @@ export function createApp(
         xp: 15,
       });
     }
-    if (lower.includes('quote') || lower.includes('inspire'))
+    if (lower.includes('feel') || lower.includes('mood')) parts.push({ type: 'mood_picker' });
+    if (lower.includes('quote') || lower.includes('inspire')) {
+      const quotes = await db.quote.findMany({ orderBy: { id: 'asc' } });
+      const quote = quotes.length
+        ? quotes[Math.floor(Date.now() / 86400000) % quotes.length]
+        : null;
       parts.push({
         type: 'quote_card',
-        text: 'You do not have to solve the whole day at once.',
-        author: 'Solace',
+        text: quote?.text ?? 'You do not have to solve the whole day at once.',
+        author: quote?.author ?? 'Solace',
       });
+    }
     return parts.flatMap((part) => {
       const parsed = messagePart.safeParse(part);
       return parsed.success ? [parsed.data as Record<string, unknown>] : [];
