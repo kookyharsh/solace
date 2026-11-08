@@ -885,6 +885,12 @@ export function createApp(
           source: 'chat',
         },
       });
+      if (!conversation.title) {
+        await db.conversation.update({
+          where: { id: conversation.id },
+          data: { title: input.text.replace(/\s+/g, ' ').trim().slice(0, 80) },
+        });
+      }
       void awardChatSessionXp(req.userId!, conversation.id).catch(() => undefined);
       void extractSignals(req.userId!, userMessage.id, input.text).catch(() => undefined);
       const profile = await companionContext(req.userId!);
@@ -938,6 +944,12 @@ export function createApp(
           source: 'chat',
         },
       });
+      if (!conversation.title) {
+        await db.conversation.update({
+          where: { id: conversation.id },
+          data: { title: input.text.replace(/\s+/g, ' ').trim().slice(0, 80) },
+        });
+      }
       void awardChatSessionXp(req.userId!, conversation.id).catch(() => undefined);
       void extractSignals(req.userId!, userMessage.id, input.text).catch(() => undefined);
       const profile = await companionContext(req.userId!);
