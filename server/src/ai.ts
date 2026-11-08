@@ -5,7 +5,7 @@ export interface CompanionReply {
   parts: Array<Record<string, unknown>>;
 }
 const crisisPattern =
-  /\b(kill myself|suicide|self[- ]harm|end my life|want to die|no reason to live)\b/i;
+  /\b(kill myself|suicide|self[- ]harm|hurt myself|end my life|want to die|no reason to live|not worth living|can't go on|cannot go on|hopeless)\b/i;
 
 export function isCrisis(text: string) {
   return crisisPattern.test(text);
