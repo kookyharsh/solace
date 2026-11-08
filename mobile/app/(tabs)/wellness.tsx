@@ -6,7 +6,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CompanionBlob } from '../../src/companion/CompanionBlob';
 import { Button, Card, Chip, GradientBackground, ProgressBar } from '../../src/components/ui';
 import { useTheme } from '../../src/theme';
-import { awardXp, getAchievements, getGamification, getMood, logMood } from '../../src/api';
+import {
+  awardXp,
+  completeDailyChallenge,
+  getAchievements,
+  getDailyChallenges,
+  getGamification,
+  getMood,
+  logMood,
+} from '../../src/api';
 
 export default function Wellness() {
   const t = useTheme();
@@ -28,6 +36,9 @@ export default function Wellness() {
       .catch(() => undefined);
     getMood()
       .then(setMoodHistory)
+      .catch(() => undefined);
+    getDailyChallenges()
+      .then((items) => setCompleted(items.filter((item) => item.completed).map((item) => item.key)))
       .catch(() => undefined);
   }, []);
   const toggle = (key: string) =>
@@ -156,6 +167,7 @@ export default function Wellness() {
                   if (key === 'breath') router.push('/breathing');
                   else {
                     toggle(key);
+                    void completeDailyChallenge(key).catch(() => undefined);
                     if (!completed.includes(key))
                       void awardXp(
                         'daily_challenge',

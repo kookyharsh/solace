@@ -227,6 +227,14 @@ export async function saveJournalEntry(text: string) {
   await ensureGuestSession();
   return request('/journal', { method: 'POST', body: JSON.stringify({ text }) });
 }
+export async function getDailyChallenges() {
+  await ensureGuestSession();
+  return request<Array<{ key: string; completed: boolean }>>('/challenges/today');
+}
+export async function completeDailyChallenge(key: string) {
+  await ensureGuestSession();
+  return request(`/challenges/${key}/complete`, { method: 'POST', body: '{}' });
+}
 export async function deleteConversation(id: string) {
   await ensureGuestSession();
   const accessToken = await AsyncStorage.getItem('solace.accessToken');

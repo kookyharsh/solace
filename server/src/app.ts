@@ -893,6 +893,39 @@ export function createApp(
       next(error);
     }
   });
+  app.get('/challenges/today', requireAuth(config), async (req, res, next) => {
+    try {
+      const date = new Date();
+      date.setUTCHours(0, 0, 0, 0);
+      const keys = ['mood', 'breath', 'gratitude'];
+      const rows = await db.dailyChallenge.findMany({ where: { userId: req.userId!, date } });
+      res.json(
+        keys.map((key) => ({
+          key,
+          completed: rows.some((row) => row.key === key && row.completedAt),
+        })),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post('/challenges/:key/complete', requireAuth(config), async (req, res, next) => {
+    try {
+      const key = String(req.params.key);
+      if (!['mood', 'breath', 'gratitude'].includes(key))
+        throw new HttpError(400, 'INVALID_CHALLENGE', 'Unknown daily challenge');
+      const date = new Date();
+      date.setUTCHours(0, 0, 0, 0);
+      const row = await db.dailyChallenge.upsert({
+        where: { userId_date_key: { userId: req.userId!, date, key } },
+        create: { userId: req.userId!, date, key, completedAt: new Date() },
+        update: { completedAt: new Date() },
+      });
+      res.json(row);
+    } catch (error) {
+      next(error);
+    }
+  });
   app.post('/gamification/event', requireAuth(config), async (req, res, next) => {
     try {
       const input = xpEventRequest.parse(req.body);
