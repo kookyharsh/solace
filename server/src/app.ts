@@ -130,6 +130,42 @@ export function createApp(
       context: memories.map((memory) => `${memory.category}: ${memory.text}`).join('; '),
     };
   };
+  const extractSignals = async (userId: string, messageId: string, text: string) => {
+    const profile = await db.user.findUnique({
+      where: { id: userId },
+      select: { memoryConsent: true },
+    });
+    if (!profile?.memoryConsent) return;
+    const memoryMatch = text.match(
+      /\b(?:i like|i love|my favorite (?:thing|food|sport|music) is)\s+([^.!?]{2,100})/i,
+    );
+    if (memoryMatch) {
+      const value = (memoryMatch[1] ?? '').trim();
+      const exists = await db.userMemory.findFirst({
+        where: { userId, text: { equals: value, mode: 'insensitive' }, deletedAt: null },
+      });
+      if (!exists)
+        await db.userMemory.create({
+          data: { userId, text: value, category: 'preference', sourceMessageId: messageId },
+        });
+    }
+    if (
+      /\b(exam|interview|appointment|match|meeting|deadline)\b/i.test(text) &&
+      /\b(tomorrow|next week|soon|on monday|on tuesday|on wednesday|on thursday|on friday)\b/i.test(
+        text,
+      )
+    ) {
+      const exists = await db.openLoop.findFirst({
+        where: {
+          userId,
+          text: { equals: text, mode: 'insensitive' },
+          status: 'open',
+          deletedAt: null,
+        },
+      });
+      if (!exists) await db.openLoop.create({ data: { userId, text, sourceMessageId: messageId } });
+    }
+  };
   const app = express();
   app.disable('x-powered-by');
   app.use((req, res, next) => {
@@ -431,6 +467,7 @@ export function createApp(
           source: 'chat',
         },
       });
+      void extractSignals(req.userId!, userMessage.id, input.text).catch(() => undefined);
       const profile = await companionContext(req.userId!);
       const reply = await generateCompanionReply(
         input.text,
@@ -474,7 +511,7 @@ export function createApp(
           })
         : await db.conversation.create({ data: { userId: req.userId! } });
       if (!conversation) throw new HttpError(404, 'NOT_FOUND', 'Conversation not found');
-      await db.message.create({
+      const userMessage = await db.message.create({
         data: {
           conversationId: conversation.id,
           role: 'user',
@@ -482,6 +519,7 @@ export function createApp(
           source: 'chat',
         },
       });
+      void extractSignals(req.userId!, userMessage.id, input.text).catch(() => undefined);
       const profile = await companionContext(req.userId!);
       const reply = await generateCompanionReply(
         input.text,
@@ -644,6 +682,7 @@ export function createApp(
           parts: [{ type: 'text', text: input.text }],
         },
       });
+      void extractSignals(req.userId!, userMessage.id, input.text).catch(() => undefined);
       const profile = await companionContext(req.userId!);
       const reply = await generateCompanionReply(
         input.text,
