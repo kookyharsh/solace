@@ -250,6 +250,31 @@ export function createApp(
   };
   const userDayStart = async (userId: string, date = new Date()) =>
     new Date(`${await userDateKey(userId, date)}T00:00:00.000Z`);
+  const awardChatSessionXp = async (userId: string, conversationId: string) => {
+    const userMessages = await db.message.count({
+      where: { conversationId, role: 'user', deletedAt: null },
+    });
+    if (userMessages < 5) return false;
+    const event = await db.xpEvent
+      .create({
+        data: {
+          userId,
+          type: 'chat_session',
+          amount: 15,
+          eventKey: `chat-session-${await userDateKey(userId)}-${userId}`,
+        },
+      })
+      .catch((error: { code?: string }) => (error.code === 'P2002' ? null : Promise.reject(error)));
+    if (!event) return false;
+    const stats = await db.userStats.upsert({
+      where: { userId },
+      create: { userId, xp: 15 },
+      update: { xp: { increment: 15 } },
+    });
+    const streaked = await updateActivityStreak(userId, stats);
+    await refreshStatsLevel({ ...streaked, userId });
+    return true;
+  };
   const levelForXp = (xp: number) => {
     let level = 1;
     let remaining = Math.max(0, xp);
@@ -834,6 +859,7 @@ export function createApp(
           source: 'chat',
         },
       });
+      void awardChatSessionXp(req.userId!, conversation.id).catch(() => undefined);
       void extractSignals(req.userId!, userMessage.id, input.text).catch(() => undefined);
       const profile = await companionContext(req.userId!);
       const reply = await generateCompanionReply(
@@ -886,6 +912,7 @@ export function createApp(
           source: 'chat',
         },
       });
+      void awardChatSessionXp(req.userId!, conversation.id).catch(() => undefined);
       void extractSignals(req.userId!, userMessage.id, input.text).catch(() => undefined);
       const profile = await companionContext(req.userId!);
       const reply = await generateCompanionReply(
