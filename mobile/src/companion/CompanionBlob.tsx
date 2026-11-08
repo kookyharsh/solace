@@ -37,7 +37,7 @@ export function CompanionBlob({
     <View accessible accessibilityLabel="Solace companion" style={{ width: size, height: size }}>
       <Svg width={size} height={size} viewBox="-120 -120 240 240">
         {frame.dots
-          .filter((dot) => frame.dotsBehind)
+          .filter(() => frame.dotsBehind)
           .map((dot, index) => (
             <Circle
               key={`behind-${index}`}
@@ -53,7 +53,7 @@ export function CompanionBlob({
           <Path key={index} d={eye.d} transform={eye.matrix} fill="#FBF7F2" opacity={eye.alpha} />
         ))}
         {frame.dots
-          .filter((dot) => !frame.dotsBehind)
+          .filter(() => !frame.dotsBehind)
           .map((dot, index) => (
             <Circle
               key={`front-${index}`}
