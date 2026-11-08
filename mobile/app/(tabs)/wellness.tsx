@@ -1,6 +1,7 @@
 import { Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Avatar, Card, GradientBackground } from '../../src/components/ui';
+import { Card, GradientBackground } from '../../src/components/ui';
+import { CompanionBlob } from '../../src/companion/CompanionBlob';
 import { useTheme } from '../../src/theme';
 export default function Wellness() {
   const t = useTheme();
@@ -17,7 +18,7 @@ export default function Wellness() {
           Wellness
         </Text>
         <Card>
-          <Avatar />
+<CompanionBlob />
           <Text
             style={{ color: t.colors.ink, fontSize: t.typography.body, marginTop: t.spacing.md }}
           >

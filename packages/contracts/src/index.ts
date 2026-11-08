@@ -17,6 +17,11 @@ export const authResponse = z.object({
   tokenType: z.literal('Bearer'),
   expiresIn: z.number().int().positive(),
 });
+export const conversationCreateRequest = z.object({ title: z.string().trim().max(120).optional() });
+export const chatRequest = z.object({
+  conversationId: z.string().uuid().optional(),
+  text: z.string().trim().min(1).max(4000),
+});
 export const errorResponse = z.object({
   error: z.object({ code: z.string(), message: z.string() }),
 });

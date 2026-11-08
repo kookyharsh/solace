@@ -4,7 +4,14 @@ import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import pino from 'pino';
 import { randomUUID } from 'node:crypto';
-import { googleAuthRequest, refreshRequest, userResponse, authResponse } from '@solace/contracts';
+import {
+  googleAuthRequest,
+  refreshRequest,
+  userResponse,
+  authResponse,
+  conversationCreateRequest,
+  chatRequest,
+} from '@solace/contracts';
 import type { PrismaClient } from '@prisma/client';
 import type { Config } from './config.js';
 import {
@@ -17,7 +24,7 @@ import {
 } from './auth.js';
 import { errorHandler, HttpError } from './errors.js';
 
-type Db = Pick<PrismaClient, '$queryRaw' | 'user' | 'refreshSession'>;
+type Db = Pick<PrismaClient, '$queryRaw' | 'user' | 'refreshSession' | 'conversation' | 'message'>;
 export function createApp(
   config: Config,
   db: Db,
@@ -135,6 +142,88 @@ export function createApp(
       const user = await db.user.findUnique({ where: { id: req.userId! } });
       if (!user) throw new HttpError(404, 'NOT_FOUND', 'Account not found');
       res.json(userResponse.parse(user));
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.get('/conversations', requireAuth(config), async (req, res, next) => {
+    try {
+      res.json(
+        await db.conversation.findMany({
+          where: { userId: req.userId!, deletedAt: null },
+          orderBy: { updatedAt: 'desc' },
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post('/conversations', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = conversationCreateRequest.parse(req.body);
+      res
+        .status(201)
+        .json(
+          await db.conversation.create({
+            data: { userId: req.userId!, title: input.title ?? null },
+          }),
+        );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.get('/conversations/:id/messages', requireAuth(config), async (req, res, next) => {
+    try {
+      const conversation = await db.conversation.findFirst({
+        where: { id: String(req.params.id), userId: req.userId!, deletedAt: null },
+      });
+      if (!conversation) throw new HttpError(404, 'NOT_FOUND', 'Conversation not found');
+      res.json(
+        await db.message.findMany({
+          where: { conversationId: conversation.id, deletedAt: null },
+          orderBy: { createdAt: 'asc' },
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post('/chat', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = chatRequest.parse(req.body);
+      const conversation = input.conversationId
+        ? await db.conversation.findFirst({
+            where: { id: input.conversationId, userId: req.userId!, deletedAt: null },
+          })
+        : await db.conversation.create({ data: { userId: req.userId! } });
+      if (!conversation) throw new HttpError(404, 'NOT_FOUND', 'Conversation not found');
+      const userMessage = await db.message.create({
+        data: {
+          conversationId: conversation.id,
+          role: 'user',
+          parts: [{ type: 'text', text: input.text }],
+          source: 'chat',
+        },
+      });
+      const parts = input.text.toLowerCase().includes('mood')
+        ? [
+            {
+              type: 'text',
+              text: 'I can help you notice the shape of your week. How are you feeling right now?',
+            },
+            { type: 'mood_picker' },
+          ]
+        : [
+            {
+              type: 'text',
+              text: 'I’m here with you. Tell me a little more about what’s on your mind.',
+            },
+            { type: 'quick_replies', options: ['I feel low', 'I feel okay', 'I want to reflect'] },
+          ];
+      const assistantMessage = await db.message.create({
+        data: { conversationId: conversation.id, role: 'assistant', parts, source: 'chat' },
+      });
+      res.json({ conversationId: conversation.id, userMessage, assistantMessage });
     } catch (error) {
       next(error);
     }
