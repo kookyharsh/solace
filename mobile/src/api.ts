@@ -92,6 +92,28 @@ export async function streamChat(
   if (!done) throw new Error('Stream ended without completion');
   return { ...done, parts };
 }
+const queuedChatKey = 'solace.queuedChat';
+export async function queueChatMessage(text: string, conversationId?: string) {
+  const raw = await AsyncStorage.getItem(queuedChatKey);
+  const queue = raw ? (JSON.parse(raw) as Array<{ text: string; conversationId?: string }>) : [];
+  queue.push({ text, conversationId });
+  await AsyncStorage.setItem(queuedChatKey, JSON.stringify(queue.slice(-50)));
+}
+export async function flushQueuedChatMessages() {
+  const raw = await AsyncStorage.getItem(queuedChatKey);
+  if (!raw) return;
+  const queue = JSON.parse(raw) as Array<{ text: string; conversationId?: string }>;
+  const remaining: typeof queue = [];
+  for (const item of queue) {
+    try {
+      await sendChat(item.text, item.conversationId);
+    } catch {
+      remaining.push(item);
+    }
+  }
+  if (remaining.length) await AsyncStorage.setItem(queuedChatKey, JSON.stringify(remaining));
+  else await AsyncStorage.removeItem(queuedChatKey);
+}
 export async function exportAccount() {
   await ensureGuestSession();
   return request<Record<string, unknown>>('/me/export');

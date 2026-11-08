@@ -15,7 +15,12 @@ import { Card, Chip, GradientBackground, IconButton } from '../../src/components
 import { router } from 'expo-router';
 import { useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../src/theme';
-import { getConversationMessages, streamChat } from '../../src/api';
+import {
+  flushQueuedChatMessages,
+  getConversationMessages,
+  queueChatMessage,
+  streamChat,
+} from '../../src/api';
 
 type ChatMessage = {
   id: string;
@@ -44,6 +49,9 @@ export default function Chat() {
     AsyncStorage.getItem('solace.profile').then((raw) => {
       if (raw) setCompanionName(JSON.parse(raw).companionName || 'Your companion');
     });
+  }, []);
+  useEffect(() => {
+    void flushQueuedChatMessages();
   }, []);
   useEffect(() => {
     if (!params.conversationId) return;
@@ -85,6 +93,7 @@ export default function Chat() {
         );
       })
       .catch(() => {
+        void queueChatMessage(text, conversationId);
         const mood = text.toLowerCase().includes('mood');
         setMessages((current) => [
           ...current.filter((message) => message.id !== assistantId),
