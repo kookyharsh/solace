@@ -15,6 +15,7 @@ import { Card, Chip, GradientBackground, IconButton } from '../../src/components
 import { router } from 'expo-router';
 import { useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../src/theme';
+import { offlineRepository } from '../../src/offline/repository';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import {
   flushQueuedChatMessages,
@@ -61,20 +62,30 @@ export default function Chat() {
   }, []);
   useEffect(() => {
     void flushQueuedChatMessages();
+    void offlineRepository.readTranscript().then((cached) => {
+      if (params.conversationId && cached.conversationId !== params.conversationId) return;
+      if (cached.messages.length) {
+        setConversationId((current) => current ?? cached.conversationId);
+        setMessages(cached.messages);
+      }
+    });
   }, []);
   useEffect(() => {
     if (!params.conversationId) return;
     setConversationId(params.conversationId);
     void getConversationMessages(params.conversationId)
       .then((items) => {
-        setMessages(
-          items.map((item) => ({
-            id: item.id,
-            role: item.role,
-            text: item.parts.find((part) => part.type === 'text')?.text ?? '',
-            parts: item.parts,
-          })),
-        );
+        const next = items.map((item) => ({
+          id: item.id,
+          role: item.role,
+          text: item.parts.find((part) => part.type === 'text')?.text ?? '',
+          parts: item.parts,
+        }));
+        setMessages(next);
+        void offlineRepository.writeTranscript({
+          conversationId: params.conversationId,
+          messages: next,
+        });
       })
       .catch(() => undefined);
   }, [params.conversationId]);
@@ -100,6 +111,12 @@ export default function Chat() {
             message.id === assistantId ? { ...message, parts: response.parts } : message,
           ),
         );
+        void offlineRepository.readTranscript().then((cached) =>
+          offlineRepository.writeTranscript({
+            conversationId: response.conversationId,
+            messages: cached.messages.length ? cached.messages : messages,
+          }),
+        );
       })
       .catch(() => {
         void queueChatMessage(text, conversationId);
@@ -118,6 +135,10 @@ export default function Chat() {
       })
       .finally(() => setThinking(false));
   };
+  useEffect(() => {
+    if (!messages.length) return;
+    void offlineRepository.writeTranscript({ conversationId, messages });
+  }, [conversationId, messages]);
   const quick = useMemo(() => ['I feel low', 'I feel okay', 'I want to reflect'], []);
   return (
     <GradientBackground>

@@ -1,6 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type QueuedChat = { text: string; conversationId?: string };
+export type CachedChatMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  parts?: Array<{ type: string; text?: string; [key: string]: unknown }>;
+};
 
 /** Offline boundary: keeps the app storage backend swappable for WatermelonDB. */
 export const offlineRepository = {
@@ -11,5 +17,17 @@ export const offlineRepository = {
   async writeChatQueue(queue: QueuedChat[]) {
     if (queue.length) await AsyncStorage.setItem('solace.queuedChat', JSON.stringify(queue));
     else await AsyncStorage.removeItem('solace.queuedChat');
+  },
+  async readTranscript(): Promise<{ conversationId?: string; messages: CachedChatMessage[] }> {
+    const raw = await AsyncStorage.getItem('solace.chat.transcript');
+    if (!raw) return { messages: [] };
+    try {
+      return JSON.parse(raw) as { conversationId?: string; messages: CachedChatMessage[] };
+    } catch {
+      return { messages: [] };
+    }
+  },
+  async writeTranscript(value: { conversationId?: string; messages: CachedChatMessage[] }) {
+    await AsyncStorage.setItem('solace.chat.transcript', JSON.stringify(value));
   },
 };
