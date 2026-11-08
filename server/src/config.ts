@@ -11,6 +11,7 @@ const schema = z.object({
   JWT_ISSUER: z.string().default('solace-api'),
   GEMINI_API_KEY: z.string().default(''),
   GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
+  EXPO_PUSH_ACCESS_TOKEN: z.string().default(''),
 });
 
 export type Config = z.infer<typeof schema>;

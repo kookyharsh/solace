@@ -15,6 +15,7 @@ const config: Config = {
   JWT_ISSUER: 'solace-test',
   GEMINI_API_KEY: '',
   GEMINI_MODEL: 'gemini-2.5-flash',
+  EXPO_PUSH_ACCESS_TOKEN: '',
 };
 const user = {
   id: '550e8400-e29b-41d4-a716-446655440000',
