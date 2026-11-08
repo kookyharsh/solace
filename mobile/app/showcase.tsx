@@ -35,7 +35,7 @@ export default function Showcase() {
           <Card>
             <Avatar />
             <Text style={{ color: t.colors.ink, marginTop: t.spacing.md }}>
-              Static avatar placeholder
+              Static companion frame
             </Text>
           </Card>
           <Chip label="A gentle chip" selected={selected} onPress={() => setSelected(!selected)} />
