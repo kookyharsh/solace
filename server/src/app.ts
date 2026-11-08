@@ -31,7 +31,7 @@ import {
   type GoogleVerifier,
 } from './auth.js';
 import { errorHandler, HttpError } from './errors.js';
-import { generateCompanionReply, isCrisis } from './ai.js';
+import { generateCompanionReply } from './ai.js';
 
 type Db = Pick<
   PrismaClient,
