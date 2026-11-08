@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CompanionBlob } from '../../src/companion/CompanionBlob';
 import { Button, Card, Chip, GradientBackground, ProgressBar } from '../../src/components/ui';
 import { useTheme } from '../../src/theme';
-import { awardXp, getAchievements, getGamification, logMood } from '../../src/api';
+import { awardXp, getAchievements, getGamification, getMood, logMood } from '../../src/api';
 
 export default function Wellness() {
   const t = useTheme();
@@ -15,6 +15,7 @@ export default function Wellness() {
   const [completed, setCompleted] = useState<string[]>([]);
   const [stats, setStats] = useState({ level: 1, xp: 0, xpIntoLevel: 0, xpForNext: 100 });
   const [achievements, setAchievements] = useState<Array<{ key: string; unlockedAt: string }>>([]);
+  const [moodHistory, setMoodHistory] = useState<Array<{ score: number; createdAt: string }>>([]);
   useEffect(() => {
     AsyncStorage.getItem('solace.profile').then((raw) => {
       if (raw) setCompanionName(JSON.parse(raw).companionName ?? 'Your companion');
@@ -24,6 +25,9 @@ export default function Wellness() {
       .catch(() => undefined);
     getAchievements()
       .then(setAchievements)
+      .catch(() => undefined);
+    getMood()
+      .then(setMoodHistory)
       .catch(() => undefined);
   }, []);
   const toggle = (key: string) =>
@@ -65,6 +69,37 @@ export default function Wellness() {
               <Text style={{ color: t.colors.primary }}>{stats.xp} XP</Text>
             </View>
             <ProgressBar value={(stats.xpIntoLevel / stats.xpForNext) * 100} />
+          </Card>
+          <Card style={{ gap: t.spacing.md }}>
+            <Text
+              style={{
+                color: t.colors.ink,
+                fontFamily: 'Nunito_700Bold',
+                fontSize: t.typography.title,
+              }}
+            >
+              Mood this week
+            </Text>
+            {moodHistory.length ? (
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 72, gap: 8 }}>
+                {moodHistory.slice(-7).map((entry) => (
+                  <View key={entry.createdAt} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+                    <View
+                      style={{
+                        width: '100%',
+                        minHeight: 8,
+                        height: Math.max(8, entry.score * 12),
+                        borderRadius: 8,
+                        backgroundColor: t.colors.primary,
+                      }}
+                    />
+                    <Text style={{ color: t.colors.muted, fontSize: 11 }}>{entry.score}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={{ color: t.colors.muted }}>Log a mood to see your weekly pattern.</Text>
+            )}
           </Card>
           <Card style={{ gap: t.spacing.md }}>
             <Text
