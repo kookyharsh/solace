@@ -160,6 +160,7 @@ export default function Settings() {
               value={memoryConsent}
               onValueChange={(value) => {
                 setMemoryConsent(value);
+                if (!value) setMemories([]);
                 void updateProfile({ memoryConsent: value });
               }}
             />
