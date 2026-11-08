@@ -203,11 +203,20 @@ export function createApp(
       lastActiveDate: Date | null;
     },
   ) => {
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    const previous = stats.lastActiveDate ? new Date(stats.lastActiveDate) : null;
-    previous?.setUTCHours(0, 0, 0, 0);
-    if (previous?.getTime() === today.getTime()) return stats;
+    const user = await db.user.findUnique({ where: { id: userId }, select: { timezone: true } });
+    const timezone = user?.timezone || 'UTC';
+    const calendarDay = (date: Date) =>
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(date);
+    const todayKey = calendarDay(new Date());
+    const previousKey = stats.lastActiveDate ? calendarDay(new Date(stats.lastActiveDate)) : null;
+    if (previousKey === todayKey) return stats;
+    const today = new Date(`${todayKey}T00:00:00.000Z`);
+    const previous = previousKey ? new Date(`${previousKey}T00:00:00.000Z`) : null;
     const currentStreak =
       previous && today.getTime() - previous.getTime() === 86400000 ? stats.currentStreak + 1 : 1;
     return db.userStats.update({
