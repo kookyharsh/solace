@@ -15,7 +15,7 @@ import { Card, Chip, GradientBackground, IconButton } from '../../src/components
 import { router } from 'expo-router';
 import { useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../src/theme';
-import { getConversationMessages, sendChat } from '../../src/api';
+import { getConversationMessages, streamChat } from '../../src/api';
 
 type ChatMessage = {
   id: string;
@@ -67,24 +67,27 @@ export default function Chat() {
     setDraft('');
     setMessages((current) => [...current, { id: `${Date.now()}-u`, role: 'user', text }]);
     setThinking(true);
-    void sendChat(text, conversationId)
+    const assistantId = `${Date.now()}-a`;
+    setMessages((current) => [...current, { id: assistantId, role: 'assistant', text: '' }]);
+    void streamChat(text, conversationId, (delta) => {
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === assistantId ? { ...message, text: message.text + delta } : message,
+        ),
+      );
+    })
       .then((response) => {
         setConversationId(response.conversationId);
-        const textPart = response.assistantMessage.parts.find((part) => part.type === 'text');
-        setMessages((current) => [
-          ...current,
-          {
-            id: `${Date.now()}-a`,
-            role: 'assistant',
-            text: textPart?.text ?? 'I’m here with you.',
-            parts: response.assistantMessage.parts,
-          },
-        ]);
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === assistantId ? { ...message, parts: response.parts } : message,
+          ),
+        );
       })
       .catch(() => {
         const mood = text.toLowerCase().includes('mood');
         setMessages((current) => [
-          ...current,
+          ...current.filter((message) => message.id !== assistantId),
           {
             id: `${Date.now()}-a`,
             role: 'assistant',

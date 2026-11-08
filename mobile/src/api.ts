@@ -46,6 +46,52 @@ export async function sendChat(text: string, conversationId?: string) {
     };
   }>('/chat', { method: 'POST', body: JSON.stringify({ text, conversationId }) });
 }
+export async function streamChat(
+  text: string,
+  conversationId: string | undefined,
+  onDelta: (text: string) => void,
+) {
+  await ensureGuestSession();
+  const accessToken = await AsyncStorage.getItem('solace.accessToken');
+  const response = await fetch(`${baseUrl}/chat/stream`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: JSON.stringify({ text, conversationId }),
+  });
+  if (!response.ok || !response.body) throw new Error(`API ${response.status}`);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let done: { conversationId: string; messageId: string } | undefined;
+  let parts: Array<{ type: string; text?: string; [key: string]: unknown }> = [];
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    const events = buffer.split('\n\n');
+    buffer = events.pop() ?? '';
+    for (const event of events) {
+      const type = event.match(/^event: ([^\n]+)/m)?.[1];
+      const data = event.match(/^data: ([^\n]+)/m)?.[1];
+      if (!type || !data) continue;
+      const payload = JSON.parse(data) as {
+        text?: string;
+        parts?: typeof parts;
+        conversationId?: string;
+        messageId?: string;
+      };
+      if (type === 'delta' && payload.text) onDelta(payload.text);
+      if (type === 'parts' && payload.parts) parts = payload.parts;
+      if (type === 'done' && payload.conversationId && payload.messageId)
+        done = { conversationId: payload.conversationId, messageId: payload.messageId };
+    }
+  }
+  if (!done) throw new Error('Stream ended without completion');
+  return { ...done, parts };
+}
 export async function exportAccount() {
   await ensureGuestSession();
   return request<Record<string, unknown>>('/me/export');
