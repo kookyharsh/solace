@@ -18,7 +18,7 @@ Node 22.13+ and pnpm 11+, PostgreSQL 16+, and an Android device or emulator with
 
 Run `docker compose up -d` to start the optional local database defined in `compose.yaml`. For Supabase, use the project's PostgreSQL connection string as `DATABASE_URL`; migrations need a direct database connection. Keep credentials only in the server environment.
 
-Run `pnpm install`, `pnpm db:generate`, `pnpm db:migrate`, and `pnpm dev`. Seed the quote catalog with `pnpm --filter @solace/server db:seed`. Use `pnpm --filter @solace/mobile android` for a local development build, or `eas build --profile development --platform android` after signing in to EAS. The preview profile produces an APK. Run `pnpm check`, `pnpm build`, `pnpm --filter @solace/server test`, and `pnpm --filter @solace/mobile export:android` before reviewing a release.
+Run `pnpm install`, `pnpm db:generate`, `pnpm db:migrate`, and `pnpm dev`. Seed the quote catalog with `pnpm --filter @solace/server db:seed`. Use `pnpm --filter @solace/mobile android` for a local development build, or `eas build --profile development --platform android` after signing in to EAS. The preview profile produces an APK. Run `pnpm mobile:doctor`, `pnpm check`, `pnpm build`, `pnpm --filter @solace/server test`, and `pnpm --filter @solace/mobile export:android` before reviewing a release.
 
 ## API
 

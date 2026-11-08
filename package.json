@@ -6,6 +6,7 @@
     "dev": "pnpm --parallel --filter @solace/server --filter @solace/mobile dev",
     "check": "pnpm -r typecheck && pnpm -r lint",
     "build": "pnpm --filter @solace/server build",
+    "mobile:doctor": "pnpm --filter @solace/mobile exec npx expo-doctor",
     "format:check": "prettier --check \"{mobile,server,packages}/**/*.{ts,tsx,json}\"",
     "db:migrate": "pnpm --filter @solace/server exec prisma migrate deploy",
     "db:generate": "pnpm --filter @solace/server exec prisma generate"
