@@ -135,14 +135,26 @@ export function createApp(
     });
     if (!user) return { companionName: null, context: '' };
     if (!user.memoryConsent) return { companionName: user.companionName, context: '' };
-    const memories = await db.userMemory.findMany({
-      where: { userId, deletedAt: null },
-      orderBy: { updatedAt: 'desc' },
-      take: 8,
-    });
+    const [memories, moods] = await Promise.all([
+      db.userMemory.findMany({
+        where: { userId, deletedAt: null },
+        orderBy: { updatedAt: 'desc' },
+        take: 8,
+      }),
+      db.moodEntry.findMany({
+        where: { userId, deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        take: 7,
+      }),
+    ]);
     return {
       companionName: user.companionName,
-      context: memories.map((memory) => `${memory.category}: ${memory.text}`).join('; '),
+      context: [
+        ...memories.map((memory) => `${memory.category}: ${memory.text}`),
+        ...(moods.length
+          ? [`recent mood scores: ${moods.map((mood) => mood.score).join(', ')}`]
+          : []),
+      ].join('; '),
     };
   };
   const extractSignals = async (userId: string, messageId: string, text: string) => {
