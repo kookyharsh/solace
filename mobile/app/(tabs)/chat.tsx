@@ -325,6 +325,43 @@ export default function Chat() {
                       </Card>
                     );
                   }
+                  if (part.type === 'companion')
+                    return (
+                      <View key={`companion-${index}`} style={{ marginTop: t.spacing.md }}>
+                        <CompanionBlob
+                          size={72}
+                          state={
+                            String(part.state || 'idle') as
+                              'idle' | 'thinking' | 'happy' | 'proud' | 'caring'
+                          }
+                          moodScore={
+                            typeof part.moodScore === 'number' ? part.moodScore : undefined
+                          }
+                          frozenAt={1}
+                        />
+                      </View>
+                    );
+                  if (part.type === 'level_up')
+                    return (
+                      <Card
+                        key={`level-${index}`}
+                        style={{ marginTop: t.spacing.md, gap: t.spacing.sm }}
+                      >
+                        <Text
+                          style={{
+                            color: t.colors.primary,
+                            fontFamily: 'Nunito_700Bold',
+                            fontSize: t.typography.title,
+                          }}
+                        >
+                          A new level is blooming ✨
+                        </Text>
+                        <Text style={{ color: t.colors.ink }}>
+                          Level {String(part.level)} ·{' '}
+                          {String(part.unlock ?? 'A new companion moment')}
+                        </Text>
+                      </Card>
+                    );
                   return null;
                 })}
               </Card>
