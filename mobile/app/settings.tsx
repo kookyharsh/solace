@@ -8,6 +8,7 @@ import { useTheme, useThemeMode } from '../src/theme';
 import { scheduleDefaultDailyReminders, scheduleGentleReminder } from '../src/notifications';
 import {
   createReminder,
+  deleteAccount,
   deleteMemory,
   deleteReminder,
   exportAccount,
@@ -343,6 +344,28 @@ export default function Settings() {
         <Button
           label="Sign out"
           onPress={() => void signOut().then(() => router.replace('/onboarding'))}
+        />
+        <Button
+          label="Delete account and all data"
+          onPress={() =>
+            Alert.alert(
+              'Delete everything?',
+              'This permanently removes your conversations, moods, memories, and account.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete',
+                  style: 'destructive',
+                  onPress: () =>
+                    void deleteAccount()
+                      .then(() => router.replace('/onboarding'))
+                      .catch(() =>
+                        Alert.alert('Could not delete', 'Please try again when you are online.'),
+                      ),
+                },
+              ],
+            )
+          }
         />
         <Button label="Back" onPress={() => router.back()} />
       </SafeAreaView>

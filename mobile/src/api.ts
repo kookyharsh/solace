@@ -83,6 +83,16 @@ export async function signOut() {
     'solace.onboarding',
   ]);
 }
+export async function deleteAccount() {
+  await request('/me', { method: 'DELETE', body: '{}' });
+  await AsyncStorage.multiRemove([
+    'solace.accessToken',
+    'solace.refreshToken',
+    'solace.onboarding',
+    'solace.profile',
+    'solace.queuedChat',
+  ]);
+}
 export async function sendChat(text: string, conversationId?: string) {
   await ensureGuestSession();
   return request<{
