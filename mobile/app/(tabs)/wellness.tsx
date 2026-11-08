@@ -53,7 +53,7 @@ export default function Wellness() {
                 Wellness
               </Text>
             </View>
-            <CompanionBlob size={72} state="proud" moodScore={mood} />
+            <CompanionBlob size={72} state="proud" moodScore={mood} frozenAt={1} />
           </View>
           <Card style={{ gap: t.spacing.md }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>

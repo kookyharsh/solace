@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { AccessibilityInfo, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { BotEngine } from './engine/engine';
 import { SHAPE_BY_ID } from './engine/skins';
@@ -24,6 +24,7 @@ export function CompanionBlob({
     [state],
   );
   const [frame, setFrame] = useState(() => engine.sample(frozenAt));
+  const [reduceMotion, setReduceMotion] = useState(false);
   const last = useRef(state);
   useEffect(() => {
     if (last.current !== state) {
@@ -32,6 +33,16 @@ export function CompanionBlob({
     }
     setFrame(engine.sample(frozenAt));
   }, [engine, frozenAt, state]);
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => listener.remove();
+  }, []);
+  useEffect(() => {
+    if (reduceMotion || frozenAt !== 0) return;
+    const timer = setInterval(() => setFrame(engine.sample(Date.now() / 1000)), 33);
+    return () => clearInterval(timer);
+  }, [engine, frozenAt, reduceMotion]);
   const fill = color ?? colorForMood(moodScore);
   return (
     <View accessible accessibilityLabel="Solace companion" style={{ width: size, height: size }}>
