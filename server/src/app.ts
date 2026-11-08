@@ -628,16 +628,45 @@ export function createApp(
   app.post('/mood', requireAuth(config), async (req, res, next) => {
     try {
       const input = moodRequest.parse(req.body);
-      res.status(201).json(
-        await db.moodEntry.create({
+      const mood = await db.moodEntry.create({
+        data: {
+          userId: req.userId!,
+          score: input.score,
+          note: input.note ?? null,
+          provenance: 'explicit',
+        },
+      });
+      const day = new Date().toISOString().slice(0, 10);
+      const event = await db.xpEvent
+        .create({
           data: {
             userId: req.userId!,
-            score: input.score,
-            note: input.note ?? null,
-            provenance: 'explicit',
+            type: 'mood_checkin',
+            amount: 10,
+            eventKey: `mood-${day}-${req.userId}`,
           },
-        }),
-      );
+        })
+        .catch((error: { code?: string }) =>
+          error.code === 'P2002' ? null : Promise.reject(error),
+        );
+      if (event) {
+        const stats = await db.userStats.upsert({
+          where: { userId: req.userId! },
+          create: { userId: req.userId!, xp: 10 },
+          update: { xp: { increment: 10 } },
+        });
+        let level = 1;
+        let remaining = stats.xp;
+        let required = 100;
+        while (remaining >= required) {
+          remaining -= required;
+          level += 1;
+          required = 100 + (level - 1) * 50;
+        }
+        if (level !== stats.level)
+          await db.userStats.update({ where: { userId: req.userId! }, data: { level } });
+      }
+      res.status(201).json({ ...mood, xpAwarded: Boolean(event) });
     } catch (error) {
       next(error);
     }
