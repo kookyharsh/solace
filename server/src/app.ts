@@ -183,7 +183,13 @@ export function createApp(
   };
   const updateActivityStreak = async (
     userId: string,
-    stats: { currentStreak: number; longestStreak: number; lastActiveDate: Date | null },
+    stats: {
+      xp: number;
+      level: number;
+      currentStreak: number;
+      longestStreak: number;
+      lastActiveDate: Date | null;
+    },
   ) => {
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
