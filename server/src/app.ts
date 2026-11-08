@@ -680,8 +680,7 @@ export function createApp(
   });
   app.get('/journal/today', requireAuth(config), async (req, res, next) => {
     try {
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
+      const start = await userDayStart(req.userId!);
       const messages = await db.message.findMany({
         where: {
           conversation: { userId: req.userId!, deletedAt: null },
@@ -692,7 +691,9 @@ export function createApp(
       });
       res.json({
         messages,
-        summary: messages.length ? 'A few moments from today, held gently.' : null,
+        summary: messages.length
+          ? `${messages.filter((message) => message.role === 'user').length} moments shared today, held gently.`
+          : null,
       });
     } catch (error) {
       next(error);
