@@ -235,6 +235,7 @@ export async function updateProfile(profile: {
   name?: string | null;
   nickname?: string | null;
   companionName?: string | null;
+  timezone?: string;
   memoryConsent?: boolean;
   notificationConsent?: boolean;
 }) {

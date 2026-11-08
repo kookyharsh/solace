@@ -24,6 +24,7 @@ export default function Onboarding() {
       nickname: nickname.trim() || null,
       memoryConsent,
       notificationConsent,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     }).catch(() => undefined);
     await AsyncStorage.multiSet([
       ['solace.onboarding', 'done'],

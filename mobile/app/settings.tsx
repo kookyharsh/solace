@@ -59,6 +59,7 @@ export default function Settings() {
     await updateProfile({
       companionName: name.trim() || null,
       nickname: nickname.trim() || null,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     }).catch(() => undefined);
     router.back();
   };
