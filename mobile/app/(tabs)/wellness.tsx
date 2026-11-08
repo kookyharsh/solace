@@ -163,7 +163,7 @@ export default function Wellness() {
             ].map(([key, label]) => (
               <Chip
                 key={key}
-                label={`${completed.includes(key) ? '✓ ' : ''}${label}`}
+                label={`${completed.includes(key) ? 'Done · ' : ''}${label}`}
                 selected={completed.includes(key)}
                 onPress={() => {
                   if (key === 'breath') router.push('/breathing');

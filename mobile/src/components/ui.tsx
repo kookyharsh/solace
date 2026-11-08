@@ -9,6 +9,7 @@ import {
   type ViewProps,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { haptics } from '../haptics';
 import { useTheme } from '../theme';
 import { CompanionBlob } from '../companion/CompanionBlob';
@@ -232,7 +233,64 @@ export function IconButton({
       }}
       style={{ padding: t.spacing.sm, borderRadius: t.radii.pill }}
     >
-      <Text style={{ fontSize: t.typography.title, color: t.colors.ink }}>{icon}</Text>
+      <SymbolIcon name={icon} size={22} color={t.colors.ink} />
     </Pressable>
+  );
+}
+
+export function SymbolIcon({
+  name,
+  size = 22,
+  color,
+}: {
+  name: string;
+  size?: number;
+  color: string;
+}) {
+  const normalized =
+    (
+      { '◷': 'clock', '☰': 'menu', '🎙': 'mic', '■': 'stop', '↑': 'send', '♡': 'heart' } as Record<
+        string,
+        string
+      >
+    )[name] ?? name;
+  const stroke = {
+    stroke: color,
+    strokeWidth: 2,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  };
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" accessible={false}>
+      {normalized === 'clock' && (
+        <>
+          <Circle cx="12" cy="12" r="8.5" fill="none" {...stroke} />
+          <Line x1="12" y1="7" x2="12" y2="12" {...stroke} />
+          <Line x1="12" y1="12" x2="16" y2="14" {...stroke} />
+        </>
+      )}
+      {normalized === 'menu' && (
+        <>
+          <Line x1="5" y1="7" x2="19" y2="7" {...stroke} />
+          <Line x1="5" y1="12" x2="19" y2="12" {...stroke} />
+          <Line x1="5" y1="17" x2="19" y2="17" {...stroke} />
+        </>
+      )}
+      {normalized === 'mic' && (
+        <>
+          <Rect x="9" y="4" width="6" height="11" rx="3" fill="none" {...stroke} />
+          <Path d="M6 12a6 6 0 0 0 12 0M12 18v3M9 21h6" fill="none" {...stroke} />
+        </>
+      )}
+      {normalized === 'stop' && <Rect x="7" y="7" width="10" height="10" rx="2" fill={color} />}
+      {normalized === 'send' && <Path d="M4 12 20 4l-4 16-4-7-8-1Z" fill="none" {...stroke} />}
+      {normalized === 'heart' && (
+        <Path
+          d="M20 8.5c0 5-8 10-8 10S4 13.5 4 8.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 2.5Z"
+          fill="none"
+          {...stroke}
+        />
+      )}
+    </Svg>
   );
 }

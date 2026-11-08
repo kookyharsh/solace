@@ -270,7 +270,7 @@ export default function Chat() {
                         key={`streak-${index}`}
                         style={{ color: t.colors.primary, marginTop: t.spacing.md }}
                       >
-                        ✨ {String(part.current)} day streak · best {String(part.longest)}
+                        {String(part.current)} day streak · best {String(part.longest)}
                       </Text>
                     );
                   if (part.type === 'quote_card')
@@ -361,7 +361,7 @@ export default function Chat() {
                             fontSize: t.typography.title,
                           }}
                         >
-                          A new level is blooming ✨
+                          A new level is blooming
                         </Text>
                         <Text style={{ color: t.colors.ink }}>
                           Level {String(part.level)} ·{' '}
