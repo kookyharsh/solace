@@ -46,9 +46,7 @@ export default function Wellness() {
       .catch(() => undefined);
   }, []);
   const toggle = (key: string) =>
-    setCompleted((current) =>
-      current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
-    );
+    setCompleted((current) => (current.includes(key) ? current : [...current, key]));
   return (
     <GradientBackground>
       <SafeAreaView style={{ flex: 1 }}>
