@@ -191,7 +191,10 @@ export default function Chat() {
                 </Text>
                 {item.parts?.some((part) => part.type === 'quick_replies') && (
                   <View style={{ gap: t.spacing.sm, marginTop: t.spacing.md }}>
-                    {quick.map((option) => (
+                    {(
+                      (item.parts.find((part) => part.type === 'quick_replies')?.options as
+                        string[] | undefined) ?? quick
+                    ).map((option) => (
                       <Chip key={option} label={option} onPress={() => send(option)} />
                     ))}
                   </View>
