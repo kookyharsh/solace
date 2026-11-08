@@ -244,6 +244,53 @@ export function createApp(
       next(error);
     }
   });
+  app.post('/chat/stream', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = chatRequest.parse(req.body);
+      const conversation = input.conversationId
+        ? await db.conversation.findFirst({
+            where: { id: input.conversationId, userId: req.userId!, deletedAt: null },
+          })
+        : await db.conversation.create({ data: { userId: req.userId! } });
+      if (!conversation) throw new HttpError(404, 'NOT_FOUND', 'Conversation not found');
+      await db.message.create({
+        data: {
+          conversationId: conversation.id,
+          role: 'user',
+          parts: [{ type: 'text', text: input.text }],
+          source: 'chat',
+        },
+      });
+      const reply = await generateCompanionReply(input.text, config);
+      const assistant = await db.message.create({
+        data: {
+          conversationId: conversation.id,
+          role: 'assistant',
+          parts: [
+            { type: 'text', text: reply.text },
+            ...reply.parts,
+          ] as unknown as Prisma.InputJsonValue,
+          source: 'chat',
+        },
+      });
+      res
+        .status(200)
+        .set({
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        });
+      for (const chunk of reply.text.match(/.{1,24}(?:\s|$)/g) ?? [reply.text])
+        res.write(`event: delta\ndata: ${JSON.stringify({ text: chunk })}\n\n`);
+      res.write(`event: parts\ndata: ${JSON.stringify({ parts: reply.parts })}\n\n`);
+      res.write(
+        `event: done\ndata: ${JSON.stringify({ conversationId: conversation.id, messageId: assistant.id })}\n\n`,
+      );
+      res.end();
+    } catch (error) {
+      next(error);
+    }
+  });
   app.post('/mood', requireAuth(config), async (req, res, next) => {
     try {
       const input = moodRequest.parse(req.body);

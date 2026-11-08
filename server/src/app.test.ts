@@ -13,7 +13,7 @@ const config: Config = {
   GOOGLE_CLIENT_ID: 'test-client-id',
   JWT_SECRET: 'abcdefghijklmnopqrstuvwxyz0123456789',
   JWT_ISSUER: 'solace-test',
-  GEMINI_API_KEY: 'test-gemini-key',
+  GEMINI_API_KEY: '',
   GEMINI_MODEL: 'gemini-2.5-flash',
 };
 const user = {
