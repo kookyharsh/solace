@@ -20,6 +20,7 @@ import {
   ClockTimePickerModal,
   TimePickerButton,
   format12Hour,
+  openNativeTimePicker,
 } from '../src/components/ClockTimePicker';
 import {
   requestNotifications,
@@ -506,7 +507,13 @@ export default function Settings() {
                 <TimePickerButton
                   value={reminderTime}
                   label="Reminder time"
-                  onPress={() => setClockModalVisible(true)}
+                  onPress={() => {
+                    const opened = openNativeTimePicker({
+                      value: reminderTime,
+                      onChange: setReminderTime,
+                    });
+                    if (!opened) setClockModalVisible(true);
+                  }}
                 />
               </View>
               <ClockTimePickerModal
