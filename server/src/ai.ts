@@ -46,10 +46,13 @@ export async function generateCompanionReply(
   if (!config.GEMINI_API_KEY) return localFallback();
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${config.GEMINI_MODEL}:generateContent?key=${encodeURIComponent(config.GEMINI_API_KEY)}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${config.GEMINI_MODEL}:generateContent`,
       {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          'x-goog-api-key': config.GEMINI_API_KEY,
+        },
         body: JSON.stringify({
           contents: [
             {
@@ -65,7 +68,11 @@ export async function generateCompanionReply(
         }),
       },
     );
-    if (!response.ok) return localFallback();
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      console.warn(`[Gemini API] Failed with status ${response.status}: ${errorText}`);
+      return localFallback();
+    }
     const payload = (await response.json()) as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
     };
@@ -75,7 +82,8 @@ export async function generateCompanionReply(
         .join('')
         .trim() || 'I’m here with you. What would feel supportive right now?';
     return { text: answer, parts: [] };
-  } catch {
+  } catch (error) {
+    console.warn('[Gemini API] Request exception:', error);
     return localFallback();
   }
 }

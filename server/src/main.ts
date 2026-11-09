@@ -4,8 +4,8 @@ import { db } from './db.js';
 import { dispatchContextualNotifications } from './notifications.js';
 
 const config = readConfig();
-const server = createApp(config, db).listen(config.PORT, () => {
-  console.log(`Solace API listening on ${config.PORT}`);
+const server = createApp(config, db).listen(config.PORT, '0.0.0.0', () => {
+  console.log(`Solace API listening on http://0.0.0.0:${config.PORT}`);
 });
 const notificationTimer = setInterval(
   () => {
