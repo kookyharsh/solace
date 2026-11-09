@@ -27,6 +27,7 @@ import {
   habitPreferenceRequest,
   syncPushRequest,
   messagePart,
+  detectChatAction,
 } from '@solace/contracts';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type { Config } from './config.js';
@@ -80,6 +81,7 @@ export function createApp(
         return parsed.success ? [parsed.data as Record<string, unknown>] : [];
       });
     const lower = text.toLowerCase();
+    const action = detectChatAction(text);
     const parts = [...replyParts];
     const asksForMoodHistory =
       /\b(?:mood (?:this|last) week|my moods? (?:this|last) week|show (?:me )?(?:my )?moods?|mood history|weekly mood)\b/.test(
@@ -117,13 +119,33 @@ export function createApp(
           longest: stats.longestStreak,
         });
     }
-    if (lower.includes('breath') || lower.includes('anxious') || lower.includes('ground')) {
+    if (action) {
+      const metadata = {
+        breathing: {
+          title: 'One-minute breathing',
+          description: 'Follow a gentle inhale and exhale at your own pace.',
+        },
+        grounding: {
+          title: '5-4-3-2-1 grounding',
+          description: 'Notice your senses and come back to this moment.',
+        },
+        gratitude: {
+          title: 'One good thing',
+          description: 'Write down one small thing you appreciate today.',
+        },
+        mood_checkin: {
+          title: 'Mood check-in',
+          description: 'Choose the feeling that is closest right now.',
+        },
+        history: { title: 'Chat history', description: 'Look back at earlier conversations.' },
+        today: { title: 'Today', description: 'Open today’s journal and check-in.' },
+        settings: { title: 'Settings', description: 'Adjust your Solace preferences.' },
+        wellness: { title: 'Wellness', description: 'Explore all wellness exercises.' },
+      }[action];
       parts.push({
-        type: 'activity_card',
-        kind: lower.includes('ground') ? 'grounding' : 'breathing',
-        title: lower.includes('ground') ? '5-4-3-2-1 grounding' : 'One-minute breathing',
-        durationMinutes: 1,
-        xp: 15,
+        type: 'action',
+        action,
+        ...metadata,
       });
     }
     if (lower.includes('quote') || lower.includes('inspire')) {

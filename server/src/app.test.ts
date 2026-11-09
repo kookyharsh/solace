@@ -4,6 +4,7 @@ import { createApp } from './app.js';
 import { signAccessToken, tokenHash } from './auth.js';
 import type { Config } from './config.js';
 import type { PrismaClient } from '@prisma/client';
+import { messagePart } from '@solace/contracts';
 
 const config: Config = {
   NODE_ENV: 'test',
@@ -214,5 +215,77 @@ describe('chat mood check-ins', () => {
     expect(retry.body.id).toBe(first.body.id);
     expect(repeatedTap.body.score).toBe(3);
     expect(moods.size).toBe(1);
+  });
+});
+
+describe('chat actions', () => {
+  it('validates the allowlisted action contract', () => {
+    expect(
+      messagePart.safeParse({
+        type: 'action',
+        action: 'breathing',
+        title: 'One-minute breathing',
+      }).success,
+    ).toBe(true);
+    expect(
+      messagePart.safeParse({ type: 'action', action: 'delete_everything', title: 'Nope' }).success,
+    ).toBe(false);
+  });
+
+  it.each(['/chat', '/chat/stream'])('returns safe actions for %s', async (path) => {
+    const { app } = fixture();
+    const token = await signAccessToken(user.id, config);
+    const partsFor = async (text: string) => {
+      const response = await request(app).post(path).auth(token, { type: 'bearer' }).send({ text });
+      expect(response.status).toBe(200);
+      if (path === '/chat')
+        return response.body.assistantMessage.parts as Array<Record<string, unknown>>;
+      const data = response.text.match(/event: parts\ndata: (.+)\n/)?.[1];
+      expect(data).toBeDefined();
+      return (JSON.parse(data!) as { parts: Array<Record<string, unknown>> }).parts;
+    };
+    const actionFor = async (text: string) =>
+      (await partsFor(text)).find((part) => part.type === 'action')?.action;
+
+    await expect(actionFor('Start a breathing excercise')).resolves.toBe('breathing');
+    await expect(actionFor('Help me calm down')).resolves.toBe('breathing');
+    await expect(actionFor('Let’s do 5-4-3-2-1 grounding')).resolves.toBe('grounding');
+    await expect(actionFor('Let’s write something I am grateful for')).resolves.toBe('gratitude');
+    await expect(actionFor('Take me to my history')).resolves.toBe('history');
+    await expect(actionFor('Show today')).resolves.toBe('today');
+    await expect(actionFor('Open settings')).resolves.toBe('settings');
+    await expect(actionFor('Show wellness activities')).resolves.toBe('wellness');
+  });
+
+  it('prioritizes crisis support and explicit mood check-ins', async () => {
+    const { app } = fixture();
+    const token = await signAccessToken(user.id, config);
+    const crisis = await request(app)
+      .post('/chat')
+      .auth(token, { type: 'bearer' })
+      .send({ text: 'I want to die. Start breathing.' });
+    expect(
+      crisis.body.assistantMessage.parts.some(
+        (part: { type: string }) => part.type === 'crisis_card',
+      ),
+    ).toBe(true);
+    expect(
+      crisis.body.assistantMessage.parts.some((part: { type: string }) => part.type === 'action'),
+    ).toBe(false);
+
+    const mood = await request(app)
+      .post('/chat')
+      .auth(token, { type: 'bearer' })
+      .send({ text: 'Log my mood' });
+    expect(
+      mood.body.assistantMessage.parts.some(
+        (part: { type: string }) => part.type === 'mood_picker',
+      ),
+    ).toBe(true);
+    expect(
+      mood.body.assistantMessage.parts.some(
+        (part: { action?: string }) => part.action === 'mood_checkin',
+      ),
+    ).toBe(true);
   });
 });

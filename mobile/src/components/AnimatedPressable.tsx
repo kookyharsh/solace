@@ -9,6 +9,7 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { AccessibilityInfo, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -23,6 +24,10 @@ interface AnimatedPressableProps extends Omit<PressableProps, 'style' | 'childre
   pressedScale?: number;
   /** Disable haptic feedback. */
   noHaptics?: boolean;
+}
+
+function triggerHaptic() {
+  void haptics.tap();
 }
 
 export function AnimatedPressable({
@@ -57,15 +62,12 @@ export function AnimatedPressable({
     .onFinalize((_, success) => {
       scale.value = withSpring(1, { damping: 12, stiffness: 300 });
       if (success && !disabled) {
-        if (!noHaptics) void haptics.tap();
-        // Run onPress on JS thread
-      }
-    })
-    .onEnd(() => {
-      if (!disabled && onPress) {
-        // onPress is JS-side — call via runOnJS not needed here since
-        // GestureDetector.onEnd already executes on the JS thread.
-        (onPress as () => void)();
+        if (!noHaptics) runOnJS(triggerHaptic)();
+        if (onPress) {
+          // Gesture callbacks are worklets on the UI runtime. React callbacks
+          // must cross back to JS only after the visual feedback has completed.
+          runOnJS(onPress)(undefined as never);
+        }
       }
     })
     .enabled(!disabled);

@@ -254,12 +254,57 @@ export async function exportAccount() {
   await ensureGuestSession();
   return request<Record<string, unknown>>('/me/export');
 }
-export async function logMood(score: number, note?: string, checkInId?: string) {
-  await ensureGuestSession();
-  return request<{ score: number }>('/mood', {
-    method: 'POST',
-    body: JSON.stringify({ score, note, checkInId }),
-  });
+export async function logMood(score: number, note?: string, checkInId?: string): Promise<{ score: number }> {
+  // 1. Optimistically update local profile mood
+  void AsyncStorage.getItem('solace.profile').then((raw) => {
+    const prev = raw ? JSON.parse(raw) : {};
+    void AsyncStorage.setItem('solace.profile', JSON.stringify({ ...prev, mood: score }));
+  }).catch(() => undefined);
+
+  // 2. Queue in offline repository
+  const createdAt = new Date().toISOString();
+  void offlineRepository.readMoodQueue().then((queue) => {
+    queue.push({ score, note, checkInId, createdAt });
+    return offlineRepository.writeMoodQueue(queue.slice(-50));
+  }).catch(() => undefined);
+
+  // 3. Attempt network save
+  try {
+    await ensureGuestSession();
+    const result = await request<{ score: number }>('/mood', {
+      method: 'POST',
+      body: JSON.stringify({ score, note, checkInId }),
+    });
+    // Remove from offline queue once saved
+    void offlineRepository.readMoodQueue().then((queue) => {
+      const remaining = queue.filter(
+        (m) => !(m.score === score && m.checkInId === checkInId && m.createdAt === createdAt),
+      );
+      return offlineRepository.writeMoodQueue(remaining);
+    }).catch(() => undefined);
+    return result;
+  } catch {
+    // Optimistic fallback: return the chosen score so UI confirms and continues smoothly
+    return { score };
+  }
+}
+
+export async function flushQueuedMoods() {
+  const queue = await offlineRepository.readMoodQueue().catch(() => []);
+  if (!queue.length) return;
+  const remaining: typeof queue = [];
+  for (const item of queue) {
+    try {
+      await ensureGuestSession();
+      await request<{ score: number }>('/mood', {
+        method: 'POST',
+        body: JSON.stringify({ score: item.score, note: item.note, checkInId: item.checkInId }),
+      });
+    } catch {
+      remaining.push(item);
+    }
+  }
+  await offlineRepository.writeMoodQueue(remaining).catch(() => undefined);
 }
 export async function getMood(range = 7) {
   await ensureGuestSession();

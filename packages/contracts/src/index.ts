@@ -18,6 +18,47 @@ export function isMoodCheckInRequest(text: string) {
   );
 }
 
+export const chatActionKind = z.enum([
+  'breathing',
+  'grounding',
+  'gratitude',
+  'mood_checkin',
+  'history',
+  'today',
+  'settings',
+  'wellness',
+]);
+export type ChatActionKind = z.infer<typeof chatActionKind>;
+
+/**
+ * Only recognizes requests that clearly ask the app to do something. Keeping
+ * this deterministic means a conversational model can never invent a route or
+ * start an unexpected in-app flow.
+ */
+export function detectChatAction(text: string): ChatActionKind | undefined {
+  const request = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const asksToOpen = /\b(?:open|show|take me to|go to|navigate to|view)\b/.test(request);
+
+  if (isMoodCheckInRequest(text)) return 'mood_checkin';
+  if (/\b(?:ground(?:ing)?|5[ -]?4[ -]?3[ -]?2[ -]?1)\b/.test(request)) return 'grounding';
+  if (
+    /\b(?:breath(?:e|ing)?|breathing exercise|calm me down|help me calm|help me relax)\b/.test(
+      request,
+    )
+  )
+    return 'breathing';
+  if (/\b(?:gratitude|grateful|appreciat(?:e|ion))\b/.test(request)) return 'gratitude';
+  if (asksToOpen && /\b(?:chat )?history\b/.test(request)) return 'history';
+  if (asksToOpen && /\b(?:today|journal)\b/.test(request)) return 'today';
+  if (asksToOpen && /\b(?:settings?|preferences?)\b/.test(request)) return 'settings';
+  if (asksToOpen && /\b(?:wellness|exercises?|activities)\b/.test(request)) return 'wellness';
+  return undefined;
+}
+
 export const googleAuthRequest = z.object({ idToken: z.string().min(20).max(8192) });
 export const guestMergeRequest = googleAuthRequest;
 export const refreshRequest = z.object({ refreshToken: z.string().min(32).max(4096) });
@@ -160,6 +201,14 @@ const partActivity = z
     xp: z.number().int().nonnegative(),
   })
   .passthrough();
+const partAction = z
+  .object({
+    type: z.literal('action'),
+    action: chatActionKind,
+    title: z.string().min(1).max(120),
+    description: z.string().max(240).optional(),
+  })
+  .passthrough();
 const partQuote = z
   .object({
     type: z.literal('quote_card'),
@@ -201,6 +250,7 @@ export const messagePart = z.union([
   partXp,
   partStreak,
   partActivity,
+  partAction,
   partQuote,
   partBreathing,
   partCompanion,

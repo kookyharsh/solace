@@ -62,6 +62,43 @@ export function ConversationBubble({
 }) {
   const { colors } = useTheme();
   const outgoing = role === 'user';
+
+  if (!outgoing) {
+    return (
+      <Animated.View
+        entering={
+          animate
+            ? FadeInDown.springify()
+                .damping(18)
+                .stiffness(140)
+                .easing(Easing.out(Easing.cubic))
+            : undefined
+        }
+        style={{
+          alignSelf: 'flex-start',
+          maxWidth: '96%',
+          paddingHorizontal: 4,
+          paddingVertical: 4,
+          gap: 8,
+        }}
+      >
+        {!!text && (
+          <Text
+            style={{
+              color: colors.ink,
+              fontFamily: 'Inter_400Regular',
+              fontSize: 16,
+              lineHeight: 25,
+            }}
+          >
+            {text}
+          </Text>
+        )}
+        {children}
+      </Animated.View>
+    );
+  }
+
   return (
     <Animated.View
       entering={
@@ -73,14 +110,12 @@ export function ConversationBubble({
           : undefined
       }
       style={{
-        alignSelf: outgoing ? 'flex-end' : 'flex-start',
-        maxWidth: outgoing ? '88%' : '94%',
+        alignSelf: 'flex-end',
+        maxWidth: '88%',
         borderRadius: 22,
-        borderTopLeftRadius: outgoing ? 22 : 6,
-        borderTopRightRadius: outgoing ? 6 : 22,
-        borderWidth: outgoing ? 0 : 1,
-        borderColor: colors.border,
-        backgroundColor: outgoing ? colors.accent : colors.surface,
+        borderTopLeftRadius: 22,
+        borderTopRightRadius: 6,
+        backgroundColor: colors.accent,
         paddingHorizontal: 16,
         paddingVertical: 11,
         gap: 8,
@@ -150,18 +185,23 @@ function ThinkingDot({ delayMs, reduceMotion }: { delayMs: number; reduceMotion:
 
 export function ThinkingBubble({ reduceMotion }: { reduceMotion: boolean }) {
   return (
-    <ConversationBubble>
-      <View
-        accessible
-        accessibilityLabel="Your companion is typing"
-        accessibilityLiveRegion="polite"
-        style={{ gap: 6, paddingVertical: 3, flexDirection: 'row', alignItems: 'center' }}
-      >
-        <ThinkingDot delayMs={0} reduceMotion={reduceMotion} />
-        <ThinkingDot delayMs={160} reduceMotion={reduceMotion} />
-        <ThinkingDot delayMs={320} reduceMotion={reduceMotion} />
-      </View>
-    </ConversationBubble>
+    <View
+      accessible
+      accessibilityLabel="Your companion is typing"
+      accessibilityLiveRegion="polite"
+      style={{
+        alignSelf: 'flex-start',
+        gap: 6,
+        paddingHorizontal: 6,
+        paddingVertical: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+      }}
+    >
+      <ThinkingDot delayMs={0} reduceMotion={reduceMotion} />
+      <ThinkingDot delayMs={160} reduceMotion={reduceMotion} />
+      <ThinkingDot delayMs={320} reduceMotion={reduceMotion} />
+    </View>
   );
 }
 

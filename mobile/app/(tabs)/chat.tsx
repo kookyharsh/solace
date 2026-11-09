@@ -23,7 +23,7 @@ import {
   reactionForMood,
   type CompanionState,
 } from '../../src/companion/companionStates';
-import { Card, Chip } from '../../src/components/ui';
+import { Card } from '../../src/components/ui';
 import {
   ConversationBackground,
   ConversationBubble,
@@ -32,10 +32,12 @@ import {
   useConversationReduceMotion,
 } from '../../src/components/conversation';
 import { MoodChoices, moodLabel, type MoodScore } from '../../src/components/MoodChoices';
+import { ChatAction, isMoodCheckInAction } from '../../src/components/chat-actions';
 import { useTheme } from '../../src/theme';
 import { offlineRepository, type CachedChatMessage } from '../../src/offline/repository';
 import {
   flushQueuedChatMessages,
+  flushQueuedMoods,
   getConversationMessages,
   logMood,
   queueChatMessage,
@@ -50,19 +52,7 @@ const welcome: CachedChatMessage = {
 };
 const quickReplies = ['I feel low', 'I feel okay', 'I want to reflect'];
 
-type Reveal = { id: string; visible: number; total: number };
 type AvatarReaction = { state: CompanionState; expression?: string };
-
-function replyBubbles(text: string) {
-  const pieces = text.split(/([.!?]+(?:\s+|$)|\n{2,})/u);
-  const bubbles: string[] = [];
-  for (let i = 0; i < pieces.length; i += 2) {
-    const bubble = (pieces[i] + (pieces[i + 1] ?? '')).trim();
-    if (bubble) bubbles.push(bubble);
-  }
-  if (bubbles.length > 4) bubbles.splice(3, bubbles.length, bubbles.slice(3).join(' '));
-  return bubbles.length ? bubbles : [''];
-}
 
 export default function Chat() {
   const { conversationId, fresh } = useLocalSearchParams<{
@@ -286,7 +276,9 @@ function ChatThread({
   const latest = messages.at(-1);
   const latestId = latest?.id;
   const activeMoodPromptId =
-    latest?.parts?.some((part) => part.type === 'mood_picker') && !latest.moodLabel
+    latest?.parts?.some(
+      (part) => part.type === 'mood_picker' || isMoodCheckInAction(part.action),
+    ) && !latest.moodLabel
       ? latest.id
       : undefined;
 
@@ -630,15 +622,18 @@ function RichMessageParts({ item }: { item: CachedChatMessage }) {
               <Text style={{ color: t.colors.muted, marginTop: 4 }}>— {String(part.author)}</Text>
             </Card>
           );
+        if (part.type === 'action')
+          return (
+            <ChatAction
+              key={`action-${index}`}
+              action={part.action}
+              title={part.title}
+              description={part.description}
+            />
+          );
         if (part.type === 'activity_card')
           return (
-            <Chip
-              key={`activity-${index}`}
-              label={`${String(part.title)} · +${String(part.xp)} XP`}
-              onPress={() =>
-                router.push(String(part.kind) === 'breathing' ? '/breathing' : '/grounding')
-              }
-            />
+            <ChatAction key={`legacy-activity-${index}`} action={part.kind} title={part.title} />
           );
         if (part.type === 'crisis_card') {
           const helplines = Array.isArray(part.helplines)
