@@ -13,6 +13,7 @@ import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { haptics } from '../haptics';
 import { useTheme } from '../theme';
 import { CompanionBlob } from '../companion/CompanionBlob';
+import { AnimatedPressable } from './AnimatedPressable';
 
 export function Button({
   label,
@@ -38,19 +39,16 @@ export function Button({
           : 'transparent';
   const color = isOutline ? t.colors.primary : isDestructive ? '#FFFFFF' : t.colors.onPrimary;
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       accessibilityLabel={label}
       disabled={disabled}
-      onPress={() => {
-        void haptics.tap();
-        onPress();
-      }}
+      onPress={onPress}
+      noHaptics={false}
       style={{
         backgroundColor,
         borderRadius: t.radii.pill,
         padding: t.spacing.md,
-        opacity: disabled ? 0.5 : 1,
         alignItems: 'center',
         borderWidth: isOutline ? 1 : 0,
         borderColor: t.colors.border,
@@ -65,7 +63,7 @@ export function Button({
       >
         {label}
       </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 export function Chip({
@@ -79,13 +77,11 @@ export function Chip({
 }) {
   const t = useTheme();
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      onPress={() => {
-        void haptics.tap();
-        onPress();
-      }}
+      onPress={onPress}
+      pressedScale={0.94}
       style={{
         borderRadius: t.radii.pill,
         backgroundColor: selected ? t.colors.primary : t.colors.surface,
@@ -101,7 +97,7 @@ export function Chip({
       >
         {label}
       </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 export function Card({ children, ...props }: ViewProps) {
