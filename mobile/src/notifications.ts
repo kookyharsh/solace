@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { registerDevice } from './api';
@@ -46,13 +47,18 @@ export async function requestNotifications() {
     if (requested.status !== 'granted') return false;
   }
   try {
-    const token = await Notifications.getExpoPushTokenAsync();
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+    const token = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined,
+    );
     await registerDevice(
       token.data,
       Platform.OS === 'android' ? 'android' : Platform.OS === 'ios' ? 'ios' : 'web',
     );
-  } catch {
+  } catch (error) {
     // Expo Go and development clients without push credentials can still use local reminders.
+    console.warn('Failed to register push token with backend:', error);
   }
   return true;
 }
