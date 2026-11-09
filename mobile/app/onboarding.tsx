@@ -1,358 +1,604 @@
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Switch, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { Button } from 'heroui-native/button';
+import { Input } from 'heroui-native/input';
+import { Switch } from 'heroui-native/switch';
 import { CompanionBlob } from '../src/companion/CompanionBlob';
-import { Button, Card, Chip, GradientBackground } from '../src/components/ui';
+import {
+  ConversationBackground,
+  ConversationBubble,
+  ConversationIconButton,
+  ThinkingBubble,
+  useConversationReduceMotion,
+} from '../src/components/conversation';
+import { MoodChoices, moodLabel, type MoodScore } from '../src/components/MoodChoices';
+import { ProgressBar } from '../src/components/ui';
 import { useTheme } from '../src/theme';
 import { useGoogleSignIn } from '../src/googleAuth';
 import { awardXp, ensureGuestSession, updateHabitPreference, updateProfile } from '../src/api';
 
+const goals = ['Stress', 'Sleep', 'Focus', 'Loneliness', 'Building habits'];
+const habits = {
+  water: 'Drink water',
+  stretch: 'Stretch',
+  walk: 'Short walk',
+  screen_break: 'Screen break',
+  wind_down: 'Wind down',
+  gratitude: 'Gratitude',
+};
+
+const questions = [
+  {
+    key: 'companionName',
+    prompt: 'What should I go by? You can pick a name or give me one of your own.',
+  },
+  { key: 'nickname', prompt: 'And what can I call you?' },
+  { key: 'mood', prompt: 'Before we get into anything else, how are you feeling right now?' },
+  { key: 'goals', prompt: 'What would you like a little support with? Pick anything that fits.' },
+  { key: 'habits', prompt: 'Are there any small habits you’d like us to make room for?' },
+  { key: 'wakeTime', prompt: 'Around what time do you usually wake up?' },
+  { key: 'sleepTime', prompt: 'And when do you usually turn in?' },
+  {
+    key: 'memoryConsent',
+    prompt:
+      'May I remember details you share to make our chats more personal? You can review or delete memories in Settings.',
+  },
+  {
+    key: 'notificationConsent',
+    prompt:
+      'Would you like occasional reminders and check-ins? You can decide now or change it in Settings.',
+  },
+] as const;
+
+type Question = (typeof questions)[number]['key'];
+type Answers = {
+  companionName: string;
+  nickname: string;
+  mood: MoodScore;
+  goals: string[];
+  habits: string[];
+  wakeTime: string;
+  sleepTime: string;
+  memoryConsent: boolean;
+  notificationConsent: boolean;
+};
+
+const defaults: Answers = {
+  companionName: '',
+  nickname: '',
+  mood: 3,
+  goals: [],
+  habits: [],
+  wakeTime: '08:00',
+  sleepTime: '22:00',
+  memoryConsent: false,
+  notificationConsent: false,
+};
+
+type Turn = { reply: string; acknowledgement: string };
+type Phase = 'greeting' | 'question' | 'thinking' | 'acknowledgement';
+
+function GoogleOption({ onSuccess, disabled }: { onSuccess: () => void; disabled: boolean }) {
+  const google = useGoogleSignIn(onSuccess);
+  return (
+    <Button
+      variant="outline"
+      isDisabled={disabled || !google.ready}
+      onPress={() => void google.signIn()}
+    >
+      Continue with Google
+    </Button>
+  );
+}
+
 export default function Onboarding() {
-  const t = useTheme();
-  const [name, setName] = useState('');
-  const [nickname, setNickname] = useState('');
-  const [mood, setMood] = useState(3);
-  const [memoryConsent, setMemoryConsent] = useState(false);
-  const [notificationConsent, setNotificationConsent] = useState(false);
-  const [goals, setGoals] = useState<string[]>([]);
-  const [wakeTime, setWakeTime] = useState('08:00');
-  const [sleepTime, setSleepTime] = useState('22:00');
-  const [habits, setHabits] = useState<string[]>([]);
+  const { colors } = useTheme();
+  const reduceMotion = useConversationReduceMotion();
+  const animate = reduceMotion === false;
+  const [answers, setAnswers] = useState(defaults);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [phase, setPhase] = useState<Phase>('greeting');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   const [revealed, setRevealed] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const complete = async () => {
-    await awardXp('onboarding_completed', 50, 'onboarding-completed').catch(() => undefined);
-    await AsyncStorage.setItem('solace.onboarding', 'done');
-    router.replace('/(tabs)/chat');
+  const transcript = useRef<ComponentRef<typeof ScrollView>>(null);
+  const submitting = useRef(false);
+  const advancing = useRef(false);
+  const question: Question | undefined = questions[turns.length]?.key;
+
+  useEffect(() => {
+    if (phase === 'question') {
+      advancing.current = false;
+      return;
+    }
+    if (reduceMotion === undefined) return;
+    const next = phase === 'thinking' ? 'acknowledgement' : 'question';
+    const timeout = setTimeout(() => setPhase(next), reduceMotion ? 0 : 330);
+    return () => clearTimeout(timeout);
+  }, [phase, reduceMotion]);
+
+  const answer = <K extends Question>(
+    key: K,
+    value: Answers[K],
+    reply: string,
+    acknowledgement: string,
+  ) => {
+    if (advancing.current || phase !== 'question' || question !== key) return;
+    advancing.current = true;
+    Keyboard.dismiss();
+    setError('');
+    setAnswers((current) => ({ ...current, [key]: value }));
+    setTurns((current) => [...current, { reply, acknowledgement }]);
+    setPhase('thinking');
   };
-  const finish = async () => {
-    if (saving) return;
-    setSaving(true);
-    const companionName = name.trim() || null;
+
+  const back = () => {
+    if (!turns.length || busy || phase !== 'question') return;
+    setError('');
+    setTurns((current) => current.slice(0, -1));
+  };
+
+  const save = async () => {
+    if (submitting.current) return;
+    submitting.current = true;
+    setBusy(true);
+    setError('');
+    const { habits: selectedHabits, mood, ...profile } = answers;
+    const companionName = profile.companionName || null;
     try {
       await ensureGuestSession();
       await updateProfile({
+        ...profile,
         companionName,
-        nickname: nickname.trim() || null,
-        memoryConsent,
-        notificationConsent,
-        goals,
-        wakeTime,
-        sleepTime,
+        nickname: profile.nickname || null,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      }).catch(() => undefined);
-      await Promise.all(
-        ['water', 'stretch', 'walk', 'screen_break', 'wind_down', 'gratitude'].map((key) =>
-          updateHabitPreference(key, habits.includes(key)).catch(() => undefined),
-        ),
+      });
+      const saved = await Promise.allSettled(
+        Object.keys(habits).map((key) => updateHabitPreference(key, selectedHabits.includes(key))),
       );
+      if (saved.some((item) => item.status === 'rejected'))
+        throw new Error('Habit preferences failed');
       await AsyncStorage.setItem(
         'solace.profile',
-        JSON.stringify({
-          companionName,
-          nickname: nickname.trim(),
-          mood,
-          memoryConsent,
-          notificationConsent,
-          goals,
-          wakeTime,
-          sleepTime,
-        }),
+        JSON.stringify({ ...profile, companionName, mood }),
       );
       setRevealed(true);
+    } catch {
+      setError(
+        'I couldn’t save your setup. Your answers are still here. Try again when you’re ready.',
+      );
     } finally {
-      setSaving(false);
+      setBusy(false);
+      submitting.current = false;
     }
   };
-  const google = useGoogleSignIn(() => void complete());
-  if (revealed)
-    return (
-      <GradientBackground>
-        <SafeAreaView style={{ flex: 1 }}>
-          <View
-            style={{
-              flex: 1,
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: t.spacing.lg,
-              gap: t.spacing.lg,
-            }}
-          >
-            <CompanionBlob size={160} state="proud" moodScore={mood} />
-            <Text
-              style={{
-                color: t.colors.ink,
-                fontFamily: 'Nunito_700Bold',
-                fontSize: t.typography.display,
-                textAlign: 'center',
-              }}
-            >
-              {name.trim() ? `${name.trim()} is ready` : 'Your companion is ready'}
-            </Text>
-            <Text
-              style={{ color: t.colors.muted, textAlign: 'center', fontSize: t.typography.body }}
-            >
-              I’ll keep this space gentle, private, and yours.
-            </Text>
-            <Button label="Continue as guest" onPress={() => void complete()} />
-            {google.ready && (
-              <Button label="Continue with Google" onPress={() => void google.signIn()} />
-            )}
-            <Text style={{ color: t.colors.muted, textAlign: 'center' }}>
-              Solace is a companion, not a replacement for professional care.
-            </Text>
-          </View>
-        </SafeAreaView>
-      </GradientBackground>
+
+  const complete = useCallback(async () => {
+    if (submitting.current) return;
+    submitting.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      await awardXp('onboarding_completed', 50, 'onboarding-completed').catch(() => undefined);
+      await AsyncStorage.setItem('solace.onboarding', 'done');
+      router.replace('/(tabs)/chat');
+    } catch {
+      setError('I couldn’t open our chat yet. Please try again.');
+      submitting.current = false;
+      setBusy(false);
+    }
+  }, []);
+  const completeWithGoogle = useCallback(() => void complete(), [complete]);
+
+  const submitName = (key: 'companionName' | 'nickname', name: string) => {
+    const trimmed = name.trim();
+    if (key === 'companionName') {
+      answer(
+        key,
+        trimmed,
+        trimmed || 'Solace is fine',
+        trimmed ? 'I like that. ' + trimmed + ' it is.' : 'Solace it is, then.',
+      );
+    } else {
+      answer(
+        key,
+        trimmed,
+        trimmed || 'I’ll skip my name',
+        trimmed ? 'Good to meet you, ' + trimmed + '.' : 'Of course. I’m glad you’re here.',
+      );
+    }
+  };
+
+  const submitTime = (key: 'wakeTime' | 'sleepTime', time: string) => {
+    const trimmed = time.trim();
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(trimmed)) {
+      setError('Use a 24-hour time such as ' + defaults[key] + '.');
+      return;
+    }
+    answer(
+      key,
+      trimmed,
+      trimmed,
+      key === 'wakeTime'
+        ? 'Got it. That gives me a feel for your mornings.'
+        : 'Thanks. That helps me understand your routine.',
     );
-  return (
-    <GradientBackground>
-      <SafeAreaView style={{ flex: 1 }}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
-        >
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ padding: t.spacing.lg, gap: t.spacing.lg, paddingBottom: t.spacing.xl * 3 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={{ alignItems: 'center', gap: t.spacing.md, marginTop: t.spacing.lg }}>
-            <CompanionBlob size={110} state="happy" />
-            <Text
-              style={{
-                color: t.colors.ink,
-                fontFamily: 'Nunito_700Bold',
-                fontSize: t.typography.display,
-              }}
-            >
-              A gentle start
-            </Text>
-            <Text
-              style={{ color: t.colors.muted, textAlign: 'center', fontSize: t.typography.body }}
-            >
-              This is your space to be heard. You can change everything later.
-            </Text>
-          </View>
-          <Card style={{ gap: t.spacing.md }}>
-            <Text
-              style={{
-                color: t.colors.ink,
-                fontFamily: 'Nunito_700Bold',
-                fontSize: t.typography.title,
-              }}
-            >
-              What should I be called?
-            </Text>
-            <TextInput
-              accessibilityLabel="Companion name"
-              value={name}
-              onChangeText={setName}
-              placeholder="Name your companion"
-              placeholderTextColor={t.colors.muted}
-              style={{
-                color: t.colors.ink,
-                backgroundColor: t.colors.background,
-                borderRadius: t.radii.md,
-                padding: t.spacing.md,
-                fontSize: t.typography.body,
-              }}
+  };
+
+  const renderChoices = () => {
+    switch (question) {
+      case 'companionName':
+      case 'nickname':
+        return (
+          <>
+            {question === 'companionName' && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {['Mochi', 'Luna', 'Pip'].map((name) => (
+                  <Button
+                    key={name}
+                    size="sm"
+                    variant="outline"
+                    onPress={() => submitName(question, name)}
+                  >
+                    {name}
+                  </Button>
+                ))}
+              </View>
+            )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Input
+                accessibilityLabel={
+                  question === 'companionName' ? 'Companion name' : 'Your nickname'
+                }
+                placeholder={
+                  question === 'companionName' ? 'Type a name for me…' : 'Your name or nickname…'
+                }
+                value={answers[question]}
+                onChangeText={(value) =>
+                  setAnswers((current) => ({ ...current, [question]: value }))
+                }
+                maxLength={question === 'companionName' ? 20 : 80}
+                onSubmitEditing={() => submitName(question, answers[question])}
+                returnKeyType="send"
+                containerClassName="flex-1"
+                style={{ minHeight: 48 }}
+              />
+              <ConversationIconButton
+                label="Send answer"
+                icon="send"
+                primary
+                disabled={!answers[question].trim()}
+                onPress={() => submitName(question, answers[question])}
+              />
+            </View>
+            <Button size="sm" variant="ghost" onPress={() => submitName(question, '')}>
+              {question === 'companionName' ? 'Keep Solace' : 'Skip for now'}
+            </Button>
+          </>
+        );
+      case 'mood':
+        return (
+          <>
+            <MoodChoices
+              onChoose={(score) =>
+                answer(
+                  'mood',
+                  score,
+                  moodLabel(score),
+                  'Thanks for telling me. We can take this at your pace.',
+                )
+              }
             />
-            <View style={{ flexDirection: 'row', gap: t.spacing.sm }}>
-              {['Mochi', 'Luna', 'Pip'].map((suggestion) => (
-                <Chip
-                  key={suggestion}
-                  label={suggestion}
-                  selected={name === suggestion}
-                  onPress={() => setName(suggestion)}
-                />
-              ))}
-            </View>
-            <Text
-              style={{
-                color: t.colors.ink,
-                fontFamily: 'Nunito_700Bold',
-                fontSize: t.typography.title,
-              }}
-            >
-              And what can I call you?
-            </Text>
-            <TextInput
-              accessibilityLabel="Your nickname"
-              value={nickname}
-              onChangeText={setNickname}
-              placeholder="Your name or nickname"
-              placeholderTextColor={t.colors.muted}
-              style={{
-                color: t.colors.ink,
-                backgroundColor: t.colors.background,
-                borderRadius: t.radii.md,
-                padding: t.spacing.md,
-                fontSize: t.typography.body,
-              }}
-            />
-            <Text
-              style={{
-                color: t.colors.ink,
-                fontFamily: 'Nunito_700Bold',
-                fontSize: t.typography.title,
-              }}
-            >
-              How are you feeling today?
-            </Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              {['😔', '🙁', '😐', '🙂', '😊'].map((emoji, index) => (
-                <Chip
-                  key={emoji}
-                  label={emoji}
-                  selected={mood === index + 1}
-                  onPress={() => setMood(index + 1)}
-                />
-              ))}
-            </View>
-            <Text
-              style={{
-                color: t.colors.ink,
-                fontFamily: 'Nunito_700Bold',
-                fontSize: t.typography.title,
-              }}
-            >
-              What would you like gentle help with?
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.sm }}>
-              {['Stress', 'Sleep', 'Focus', 'Loneliness', 'Building habits'].map((goal) => {
-                const selected = goals.includes(goal);
-                return (
-                  <Chip
-                    key={goal}
-                    label={goal}
-                    selected={selected}
-                    onPress={() =>
-                      setGoals((current) =>
-                        selected ? current.filter((item) => item !== goal) : [...current, goal],
-                      )
-                    }
-                  />
-                );
-              })}
-            </View>
-            <Text
-              style={{
-                color: t.colors.ink,
-                fontFamily: 'Nunito_700Bold',
-                fontSize: t.typography.title,
-              }}
-            >
-              Small habits to support
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.sm }}>
-              {[
-                ['water', 'Drink water'],
-                ['stretch', 'Stretch'],
-                ['walk', 'Short walk'],
-                ['screen_break', 'Screen break'],
-                ['wind_down', 'Wind down'],
-                ['gratitude', 'Gratitude'],
-              ].map(([key, label]) => {
-                const selected = habits.includes(key);
-                return (
-                  <Chip
-                    key={key}
-                    label={label}
-                    selected={selected}
-                    onPress={() =>
-                      setHabits((current) =>
-                        selected ? current.filter((item) => item !== key) : [...current, key],
-                      )
-                    }
-                  />
-                );
-              })}
-            </View>
-            <View style={{ flexDirection: 'row', gap: t.spacing.sm }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: t.colors.muted, marginBottom: 4 }}>Wake time</Text>
-                <TextInput
-                  accessibilityLabel="Wake time"
-                  value={wakeTime}
-                  onChangeText={setWakeTime}
-                  placeholder="08:00"
-                  placeholderTextColor={t.colors.muted}
-                  keyboardType="numbers-and-punctuation"
-                  style={{
-                    color: t.colors.ink,
-                    backgroundColor: t.colors.background,
-                    borderRadius: t.radii.md,
-                    padding: t.spacing.md,
-                    fontSize: t.typography.body,
-                  }}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: t.colors.muted, marginBottom: 4 }}>Sleep time</Text>
-                <TextInput
-                  accessibilityLabel="Sleep time"
-                  value={sleepTime}
-                  onChangeText={setSleepTime}
-                  placeholder="22:00"
-                  placeholderTextColor={t.colors.muted}
-                  keyboardType="numbers-and-punctuation"
-                  style={{
-                    color: t.colors.ink,
-                    backgroundColor: t.colors.background,
-                    borderRadius: t.radii.md,
-                    padding: t.spacing.md,
-                    fontSize: t.typography.body,
-                  }}
-                />
-              </View>
-            </View>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <View style={{ flex: 1, paddingRight: t.spacing.md }}>
-                <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>
-                  Let your companion remember
-                </Text>
-                <Text style={{ color: t.colors.muted }}>
-                  You can review or delete memories anytime.
-                </Text>
-              </View>
-              <Switch value={memoryConsent} onValueChange={setMemoryConsent} />
-            </View>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <View style={{ flex: 1, paddingRight: t.spacing.md }}>
-                <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>
-                  Gentle notifications
-                </Text>
-                <Text style={{ color: t.colors.muted }}>Optional reminders and check-ins.</Text>
-              </View>
-              <Switch value={notificationConsent} onValueChange={setNotificationConsent} />
-            </View>
-            <Text style={{ color: t.colors.muted, lineHeight: 22 }}>
-              Solace is a companion, not a replacement for professional care.
-            </Text>
             <Button
-              label={saving ? 'Preparing your companion…' : 'Reveal my companion'}
-              disabled={saving}
-              onPress={() => void finish()}
-            />
-          </Card>
-        </ScrollView>
-      </KeyboardAvoidingView>
+              size="sm"
+              variant="ghost"
+              onPress={() =>
+                answer('mood', 3, 'Skip for now', 'That’s okay. We can check in another time.')
+              }
+            >
+              Skip for now
+            </Button>
+          </>
+        );
+      case 'goals':
+      case 'habits': {
+        const options =
+          question === 'goals' ? goals.map((goal) => [goal, goal]) : Object.entries(habits);
+        const selected = answers[question];
+        const label = (key: string) => options.find(([value]) => value === key)?.[1] ?? key;
+        return (
+          <>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+              {options.map(([key, title]) => (
+                <Button
+                  key={key}
+                  size="sm"
+                  variant={selected.includes(key) ? 'primary' : 'outline'}
+                  accessibilityState={{ selected: selected.includes(key) }}
+                  onPress={() =>
+                    setAnswers((current) => ({
+                      ...current,
+                      [question]: current[question].includes(key)
+                        ? current[question].filter((item) => item !== key)
+                        : [...current[question], key],
+                    }))
+                  }
+                >
+                  {title}
+                </Button>
+              ))}
+            </View>
+            <Button
+              onPress={() =>
+                answer(
+                  question,
+                  selected,
+                  selected.length ? selected.map(label).join(', ') : 'Skip for now',
+                  selected.length
+                    ? 'We can start there and see what feels right.'
+                    : 'Sure. We can come back to this anytime.',
+                )
+              }
+            >
+              {selected.length ? 'Continue' : 'Skip for now'}
+            </Button>
+          </>
+        );
+      }
+      case 'wakeTime':
+      case 'sleepTime':
+        return (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Input
+                accessibilityLabel={question === 'wakeTime' ? 'Wake time' : 'Sleep time'}
+                isInvalid={!!error}
+                value={answers[question]}
+                onChangeText={(value) => {
+                  setError('');
+                  setAnswers((current) => ({ ...current, [question]: value }));
+                }}
+                keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
+                maxLength={5}
+                placeholder={defaults[question]}
+                onSubmitEditing={() => submitTime(question, answers[question])}
+                returnKeyType="send"
+                containerClassName="flex-1"
+                style={{ minHeight: 48 }}
+              />
+              <ConversationIconButton
+                label="Send time"
+                icon="send"
+                primary
+                onPress={() => submitTime(question, answers[question])}
+              />
+            </View>
+            <Button
+              size="sm"
+              variant="ghost"
+              onPress={() => submitTime(question, defaults[question])}
+            >
+              {'Use ' + defaults[question]}
+            </Button>
+          </>
+        );
+      case 'memoryConsent':
+      case 'notificationConsent': {
+        const isMemory = question === 'memoryConsent';
+        const label = isMemory ? 'Remember what I share' : 'Reminders and check-ins';
+        const allowed = answers[question];
+        return (
+          <>
+            <View
+              style={{
+                flexDirection: 'row',
+                gap: 12,
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <Text style={{ flex: 1, color: colors.ink, fontFamily: 'Nunito_700Bold' }}>
+                {label}
+              </Text>
+              <Switch
+                accessibilityLabel={label}
+                isSelected={allowed}
+                onSelectedChange={(value) =>
+                  setAnswers((current) => ({ ...current, [question]: value }))
+                }
+              />
+            </View>
+            <Button
+              onPress={() =>
+                answer(
+                  question,
+                  allowed,
+                  allowed ? 'Yes, turn it on' : 'Leave it off',
+                  allowed
+                    ? 'Got it. You can change that anytime.'
+                    : 'Of course. We’ll leave it off.',
+                )
+              }
+            >
+              Continue
+            </Button>
+          </>
+        );
+      }
+      default:
+        return (
+          <Button isDisabled={busy} onPress={() => void save()}>
+            {busy ? 'Saving your setup…' : 'Meet your companion'}
+          </Button>
+        );
+    }
+  };
+
+  return (
+    <ConversationBackground>
+      <SafeAreaView style={{ flex: 1 }}>
+        {revealed ? (
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
+          >
+            <Animated.View
+              entering={animate ? FadeInDown.duration(400) : undefined}
+              style={{
+                width: '100%',
+                maxWidth: 440,
+                alignSelf: 'center',
+                alignItems: 'center',
+                gap: 16,
+              }}
+            >
+              <CompanionBlob size={164} state="proud" moodScore={answers.mood} />
+              <Text
+                accessibilityRole="header"
+                style={{
+                  color: colors.ink,
+                  fontFamily: 'Nunito_700Bold',
+                  fontSize: 32,
+                  textAlign: 'center',
+                }}
+              >
+                {'It’s me, ' + (answers.companionName || 'Solace') + '.'}
+              </Text>
+              <Text
+                style={{ color: colors.muted, textAlign: 'center', fontSize: 16, lineHeight: 23 }}
+              >
+                I’m glad we met. When you’re ready, we can pick up right here.
+              </Text>
+              <View style={{ alignSelf: 'stretch', gap: 8 }}>
+                <Button isDisabled={busy} onPress={() => void complete()}>
+                  Continue as guest
+                </Button>
+                {!!process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID && (
+                  <GoogleOption onSuccess={completeWithGoogle} disabled={busy} />
+                )}
+              </View>
+              {!!error && (
+                <Text accessibilityRole="alert" style={{ color: colors.ink }}>
+                  {error}
+                </Text>
+              )}
+              <Text style={{ color: colors.muted, textAlign: 'center' }}>
+                Solace is a companion, not a replacement for professional care.
+              </Text>
+            </Animated.View>
+          </ScrollView>
+        ) : (
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <View style={{ paddingHorizontal: 20, paddingBottom: 12, gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <CompanionBlob
+                  size={54}
+                  state={phase === 'thinking' ? 'thinking' : 'happy'}
+                  moodScore={answers.mood}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: colors.primary,
+                      fontFamily: 'Nunito_700Bold',
+                      fontSize: 12,
+                      letterSpacing: 1.6,
+                    }}
+                  >
+                    SOLACE / HELLO
+                  </Text>
+                  <Text
+                    accessibilityRole="header"
+                    style={{ color: colors.ink, fontFamily: 'Nunito_700Bold', fontSize: 24 }}
+                  >
+                    Getting to know you
+                  </Text>
+                </View>
+              </View>
+              <ProgressBar value={(turns.length / questions.length) * 100} />
+            </View>
+            <ScrollView
+              ref={transcript}
+              style={{ flex: 1 }}
+              contentContainerStyle={{
+                width: '100%',
+                maxWidth: 640,
+                alignSelf: 'center',
+                padding: 20,
+                gap: 9,
+              }}
+              keyboardShouldPersistTaps="handled"
+              onContentSizeChange={() => transcript.current?.scrollToEnd({ animated: animate })}
+              onLayout={() => transcript.current?.scrollToEnd({ animated: false })}
+            >
+              <ConversationBubble text="Hey, I’m glad you’re here. I’m your Solace companion. Can we get to know each other a little?" />
+              {turns.map((turn, index) => {
+                const isLatest = index === turns.length - 1;
+                return (
+                  <View key={questions[index].key} style={{ gap: 9 }}>
+                    <ConversationBubble text={questions[index].prompt} />
+                    <ConversationBubble
+                      role="user"
+                      text={turn.reply}
+                      animate={animate && isLatest}
+                    />
+                    {(!isLatest || phase !== 'thinking') && (
+                      <ConversationBubble
+                        text={turn.acknowledgement}
+                        animate={animate && isLatest && phase === 'acknowledgement'}
+                      />
+                    )}
+                  </View>
+                );
+              })}
+              {phase === 'question' && (
+                <ConversationBubble
+                  key={question ?? 'ready'}
+                  text={
+                    questions[turns.length]?.prompt ??
+                    'That’s enough for a first hello. Ready to meet me properly?'
+                  }
+                  animate={animate}
+                />
+              )}
+              {(phase === 'greeting' || phase === 'thinking' || busy) && (
+                <ThinkingBubble reduceMotion={!animate} />
+              )}
+            </ScrollView>
+            {phase === 'question' && (
+              <View
+                style={{
+                  borderTopWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.background,
+                }}
+              >
+                <View
+                  style={{ width: '100%', maxWidth: 640, alignSelf: 'center', padding: 16, gap: 8 }}
+                >
+                  {!!error && (
+                    <Text accessibilityRole="alert" style={{ color: colors.ink }}>
+                      {error}
+                    </Text>
+                  )}
+                  {renderChoices()}
+                  {turns.length > 0 && !busy && (
+                    <Button size="sm" variant="ghost" onPress={back}>
+                      Previous question
+                    </Button>
+                  )}
+                </View>
+              </View>
+            )}
+          </KeyboardAvoidingView>
+        )}
       </SafeAreaView>
-    </GradientBackground>
+    </ConversationBackground>
   );
 }
