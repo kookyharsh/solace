@@ -351,6 +351,11 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
               icon="menu"
               onPress={() => router.push('/history')}
             />
+            <ConversationIconButton
+              label="Settings"
+              icon="gear"
+              onPress={() => router.push('/settings')}
+            />
           </View>
           <FlatList
             ref={list}

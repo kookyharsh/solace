@@ -11,15 +11,15 @@ import { useColorScheme } from 'react-native';
 import { Uniwind } from 'uniwind';
 
 export const palette = {
-  sage: '#ABC270',
-  honey: '#FEC868',
-  apricot: '#FDA769',
-  espresso: '#473C33',
+  lavender: '#A78BFA',
+  lilac: '#E9D5FF',
+  peach: '#FDBA9B',
+  plum: '#352A45',
 } as const;
 
 const shared = {
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 },
-  radii: { sm: 12, md: 20, lg: 28, pill: 999 },
+  radii: { sm: 12, md: 18, lg: 24, pill: 999 },
   typography: { display: 34, title: 24, body: 16, caption: 14 },
   shadows: {
     card: {
@@ -34,33 +34,33 @@ export const themes = {
   light: {
     ...shared,
     colors: {
-      background: '#FBF8EC',
-      surface: '#FFFCF4',
-      ink: palette.espresso,
-      muted: '#716154',
-      primary: '#4E602E',
+      background: '#FFF9FC',
+      surface: '#FFFFFF',
+      ink: palette.plum,
+      muted: '#74677E',
+      primary: '#7656C9',
       onPrimary: '#FFFFFF',
-      secondary: palette.apricot,
-      accent: palette.sage,
-      warning: palette.honey,
-      border: '#DFD6C1',
-      wash: '#E9EED5',
+      secondary: palette.peach,
+      accent: palette.lilac,
+      warning: '#F7C873',
+      border: '#E9DFF0',
+      wash: '#F4ECFF',
     },
   },
   dark: {
     ...shared,
     colors: {
-      background: '#252019',
-      surface: '#332B22',
-      ink: '#FFF6E6',
-      muted: '#CFBFAC',
-      primary: palette.sage,
-      onPrimary: '#252019',
-      secondary: palette.apricot,
-      accent: palette.sage,
-      warning: palette.honey,
-      border: '#584A3A',
-      wash: '#313722',
+      background: '#211B2B',
+      surface: '#30253D',
+      ink: '#FFF7FF',
+      muted: '#D6C7E1',
+      primary: '#C4B5FD',
+      onPrimary: '#30253D',
+      secondary: '#F7A987',
+      accent: '#4D3A63',
+      warning: '#F7C873',
+      border: '#4A3B59',
+      wash: '#3B2E4A',
     },
   },
 };

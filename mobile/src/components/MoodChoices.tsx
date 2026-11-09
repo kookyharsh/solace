@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Button } from 'heroui-native/button';
-import { palette, useTheme } from '../theme';
+import { useTheme } from '../theme';
 
 const moods = [
   {
@@ -70,7 +70,7 @@ export function MoodChoices({
             <Path
               d={path}
               fill="none"
-              stroke={value === score ? palette.espresso : colors.ink}
+              stroke={colors.ink}
               strokeWidth={1.65}
               strokeLinecap="round"
               strokeLinejoin="round"

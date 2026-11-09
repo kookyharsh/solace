@@ -18,12 +18,25 @@ export function Button({
   label,
   onPress,
   disabled = false,
+  variant = 'primary',
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  variant?: 'primary' | 'secondary' | 'outline' | 'destructive';
 }) {
   const t = useTheme();
+  const isOutline = variant === 'outline';
+  const isDestructive = variant === 'destructive';
+  const backgroundColor =
+    variant === 'primary'
+      ? t.colors.primary
+      : variant === 'secondary'
+        ? t.colors.accent
+        : isDestructive
+          ? '#B94B62'
+          : 'transparent';
+  const color = isOutline ? t.colors.primary : isDestructive ? '#FFFFFF' : t.colors.onPrimary;
   return (
     <Pressable
       accessibilityRole="button"
@@ -34,16 +47,18 @@ export function Button({
         onPress();
       }}
       style={{
-        backgroundColor: t.colors.primary,
+        backgroundColor,
         borderRadius: t.radii.pill,
         padding: t.spacing.md,
         opacity: disabled ? 0.5 : 1,
         alignItems: 'center',
+        borderWidth: isOutline ? 1 : 0,
+        borderColor: t.colors.border,
       }}
     >
       <Text
         style={{
-          color: t.colors.onPrimary,
+          color,
           fontSize: t.typography.body,
           fontFamily: 'Nunito_700Bold',
         }}
@@ -99,6 +114,8 @@ export function Card({ children, ...props }: ViewProps) {
           backgroundColor: t.colors.surface,
           borderRadius: t.radii.lg,
           padding: t.spacing.lg,
+          borderWidth: 1,
+          borderColor: t.colors.border,
           ...t.shadows.card,
         },
         props.style,
@@ -285,6 +302,17 @@ export function SymbolIcon({
           <Line x1="5" y1="7" x2="19" y2="7" {...stroke} />
           <Line x1="5" y1="12" x2="19" y2="12" {...stroke} />
           <Line x1="5" y1="17" x2="19" y2="17" {...stroke} />
+        </>
+      )}
+      {normalized === 'gear' && (
+        <>
+          <Circle cx="12" cy="12" r="3" fill="none" {...stroke} />
+          <Path
+            d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"
+            fill="none"
+            {...stroke}
+          />
+          <Circle cx="12" cy="12" r="7" fill="none" {...stroke} />
         </>
       )}
       {normalized === 'mic' && (

@@ -56,7 +56,9 @@ export default function Wellness() {
             style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
           >
             <View>
-              <Text style={{ color: t.colors.muted, fontSize: t.typography.body }}>Your space</Text>
+              <Text style={{ color: t.colors.muted, fontSize: t.typography.body }}>
+                Your soft place to land
+              </Text>
               <Text
                 style={{
                   color: t.colors.ink,
@@ -145,6 +147,26 @@ export default function Wellness() {
             <Text style={{ color: t.colors.muted }}>— {quote?.author ?? 'Solace'}</Text>
           </Card>
           <Card style={{ gap: t.spacing.md }}>
+            <Text
+              style={{
+                color: t.colors.ink,
+                fontFamily: 'Nunito_700Bold',
+                fontSize: t.typography.title,
+              }}
+            >
+              How are you feeling?
+            </Text>
+            <MoodChoices
+              value={mood}
+              onChoose={(score) => {
+                setMood(score);
+                toggle('mood');
+                void completeDailyChallenge('mood').catch(() => undefined);
+                void logMood(score).catch(() => undefined);
+              }}
+            />
+          </Card>
+          <Card style={{ gap: t.spacing.md }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text
                 style={{
@@ -155,8 +177,11 @@ export default function Wellness() {
               >
                 Daily care
               </Text>
-              <Text style={{ color: t.colors.primary }}>+30 XP</Text>
+              <Text style={{ color: t.colors.primary, fontFamily: 'Nunito_700Bold' }}>+30 XP</Text>
             </View>
+            <Text style={{ color: t.colors.muted }}>
+              Small moments count. Pick one that feels possible.
+            </Text>
             {[
               ['mood', 'Log your mood'],
               ['breath', 'One minute of breathing'],
@@ -176,26 +201,6 @@ export default function Wellness() {
               />
             ))}
             <ProgressBar value={(completed.length / 3) * 100} />
-          </Card>
-          <Card style={{ gap: t.spacing.md }}>
-            <Text
-              style={{
-                color: t.colors.ink,
-                fontFamily: 'Nunito_700Bold',
-                fontSize: t.typography.title,
-              }}
-            >
-              How are you feeling?
-            </Text>
-            <MoodChoices
-              value={mood}
-              onChoose={(score) => {
-                setMood(score);
-                toggle('mood');
-                void completeDailyChallenge('mood').catch(() => undefined);
-                void logMood(score).catch(() => undefined);
-              }}
-            />
           </Card>
           <Card style={{ gap: t.spacing.md }}>
             <Text

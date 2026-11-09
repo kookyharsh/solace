@@ -10,37 +10,37 @@
 @layer theme {
   :root {
     @variant light {
-      --background: #fbf8ec;
-      --foreground: #473c33;
-      --surface: #fffcf4;
-      --surface-foreground: #473c33;
-      --default: #ede7d6;
-      --default-foreground: #473c33;
-      --accent: #abc270;
-      --accent-foreground: #252019;
-      --muted: #716154;
-      --border: #dfd6c1;
-      --field-background: #fffcf4;
-      --focus: #4e602e;
-      --solace-default-hover: #e5ddc9;
-      --solace-accent-hover: #9bb061;
+      --background: #fff9fc;
+      --foreground: #352a45;
+      --surface: #ffffff;
+      --surface-foreground: #352a45;
+      --default: #f4ecff;
+      --default-foreground: #352a45;
+      --accent: #a78bfa;
+      --accent-foreground: #ffffff;
+      --muted: #74677e;
+      --border: #e9dff0;
+      --field-background: #ffffff;
+      --focus: #7656c9;
+      --solace-default-hover: #eee4fa;
+      --solace-accent-hover: #8d6ce4;
     }
 
     @variant dark {
-      --background: #252019;
-      --foreground: #fff6e6;
-      --surface: #332b22;
-      --surface-foreground: #fff6e6;
-      --default: #473c33;
-      --default-foreground: #fff6e6;
-      --accent: #abc270;
-      --accent-foreground: #252019;
-      --muted: #cfbfac;
-      --border: #584a3a;
-      --field-background: #332b22;
-      --focus: #abc270;
-      --solace-default-hover: #56493e;
-      --solace-accent-hover: #9bb061;
+      --background: #211b2b;
+      --foreground: #fff7ff;
+      --surface: #30253d;
+      --surface-foreground: #fff7ff;
+      --default: #3b2e4a;
+      --default-foreground: #fff7ff;
+      --accent: #c4b5fd;
+      --accent-foreground: #30253d;
+      --muted: #d6c7e1;
+      --border: #4a3b59;
+      --field-background: #30253d;
+      --focus: #c4b5fd;
+      --solace-default-hover: #453653;
+      --solace-accent-hover: #d5cafd;
     }
   }
 }
