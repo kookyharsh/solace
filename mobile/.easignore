@@ -1,0 +1,14 @@
+# EAS ignore rules
+node_modules
+.expo
+dist
+android/.gradle
+android/build
+android/app/build
+android/.cxx
+android/local.properties
+local.properties
+*.jks
+*.keystore
+.env
+.env.*

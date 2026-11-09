@@ -3,6 +3,12 @@ import { fetch as fetchStream } from 'expo/fetch';
 import { offlineRepository } from './offline/repository';
 
 const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:4000';
+const pendingSetupKey = 'solace.onboarding.pending';
+let accountVersion = 0;
+let changingAccount = false;
+let guestSession: Promise<boolean> | undefined;
+let tokenRefresh: Promise<boolean> | undefined;
+
 async function rawRequest(path: string, init: RequestInit, accessToken: string | null) {
   return fetch(`${baseUrl}${path}`, {
     ...init,
@@ -13,45 +19,79 @@ async function rawRequest(path: string, init: RequestInit, accessToken: string |
     },
   });
 }
-async function refreshAccessToken() {
+async function rotateAccessToken() {
+  const version = accountVersion;
   const refreshToken = await AsyncStorage.getItem('solace.refreshToken');
   if (!refreshToken) return false;
-  const response = await rawRequest(
-    '/auth/refresh',
-    { method: 'POST', body: JSON.stringify({ refreshToken }) },
-    null,
-  );
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12_000);
+  let response: Response;
+  try {
+    response = await rawRequest(
+      '/auth/refresh',
+      { method: 'POST', body: JSON.stringify({ refreshToken }), signal: controller.signal },
+      null,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+  if (version !== accountVersion) return false;
   if (!response.ok) {
     await AsyncStorage.multiRemove(['solace.accessToken', 'solace.refreshToken']);
     return false;
   }
   const tokens = (await response.json()) as { accessToken: string; refreshToken: string };
+  if (version !== accountVersion) return false;
   await AsyncStorage.multiSet([
     ['solace.accessToken', tokens.accessToken],
     ['solace.refreshToken', tokens.refreshToken],
   ]);
   return true;
 }
+function refreshAccessToken() {
+  return (tokenRefresh ??= rotateAccessToken().finally(() => {
+    tokenRefresh = undefined;
+  }));
+}
 async function request<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
+  const version = accountVersion;
   const accessToken = await AsyncStorage.getItem('solace.accessToken');
+  if (version !== accountVersion) throw new Error('Account changed');
   const response = await rawRequest(path, init, accessToken);
-  if (response.status === 401 && retry && path !== '/auth/refresh') {
-    if (await refreshAccessToken()) return request<T>(path, init, false);
+  if (response.status === 401 && retry && !init.signal?.aborted && path !== '/auth/refresh') {
+    if ((await refreshAccessToken()) && version === accountVersion)
+      return request<T>(path, init, false);
   }
   if (!response.ok) throw new Error(`API ${response.status}`);
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
-export async function ensureGuestSession() {
+async function createGuestSession() {
+  const version = accountVersion;
   if (await AsyncStorage.getItem('solace.accessToken')) return true;
-  const response = await request<{ accessToken: string; refreshToken: string }>('/auth/guest', {
-    method: 'POST',
-    body: '{}',
-  });
-  await AsyncStorage.multiSet([
-    ['solace.accessToken', response.accessToken],
-    ['solace.refreshToken', response.refreshToken],
-  ]);
-  return true;
+  if (changingAccount || version !== accountVersion) throw new Error('Account is changing');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const response = await request<{ accessToken: string; refreshToken: string }>('/auth/guest', {
+      method: 'POST',
+      body: '{}',
+      signal: controller.signal,
+    });
+    if (version !== accountVersion) throw new Error('Account changed');
+    await AsyncStorage.multiSet([
+      ['solace.accessToken', response.accessToken],
+      ['solace.refreshToken', response.refreshToken],
+    ]);
+    return true;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+export function ensureGuestSession() {
+  return (guestSession ??= createGuestSession().finally(() => {
+    guestSession = undefined;
+  }));
 }
 export async function exchangeGoogleToken(idToken: string) {
   const response = await request<{ accessToken: string; refreshToken: string }>('/auth/google', {
@@ -66,33 +106,56 @@ export async function exchangeGoogleToken(idToken: string) {
 }
 export async function mergeGuestWithGoogle(idToken: string) {
   await ensureGuestSession();
-  const response = await request<{ accessToken: string; refreshToken: string }>(
-    '/auth/guest-merge',
-    { method: 'POST', body: JSON.stringify({ idToken }) },
-  );
-  await AsyncStorage.multiSet([
-    ['solace.accessToken', response.accessToken],
-    ['solace.refreshToken', response.refreshToken],
-  ]);
-  return response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const response = await request<{ accessToken: string; refreshToken: string }>(
+      '/auth/guest-merge',
+      { method: 'POST', body: JSON.stringify({ idToken }), signal: controller.signal },
+    );
+    await AsyncStorage.multiSet([
+      ['solace.accessToken', response.accessToken],
+      ['solace.refreshToken', response.refreshToken],
+    ]);
+    return response;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+function beginAccountChange() {
+  changingAccount = true;
+  accountVersion += 1;
+  onboardingSync?.abort();
 }
 export async function signOut() {
-  await request('/auth/signout', { method: 'POST', body: '{}' }).catch(() => undefined);
-  await AsyncStorage.multiRemove([
-    'solace.accessToken',
-    'solace.refreshToken',
-    'solace.onboarding',
-  ]);
+  beginAccountChange();
+  try {
+    await request('/auth/signout', { method: 'POST', body: '{}' }).catch(() => undefined);
+    await AsyncStorage.multiRemove([
+      'solace.accessToken',
+      'solace.refreshToken',
+      'solace.onboarding',
+      pendingSetupKey,
+    ]);
+  } finally {
+    changingAccount = false;
+  }
 }
 export async function deleteAccount() {
-  await request('/me', { method: 'DELETE', body: '{}' });
-  await AsyncStorage.multiRemove([
-    'solace.accessToken',
-    'solace.refreshToken',
-    'solace.onboarding',
-    'solace.profile',
-    'solace.queuedChat',
-  ]);
+  beginAccountChange();
+  try {
+    await request('/me', { method: 'DELETE', body: '{}' });
+    await AsyncStorage.multiRemove([
+      'solace.accessToken',
+      'solace.refreshToken',
+      'solace.onboarding',
+      'solace.profile',
+      'solace.queuedChat',
+      pendingSetupKey,
+    ]);
+  } finally {
+    changingAccount = false;
+  }
 }
 export async function sendChat(text: string, conversationId?: string) {
   await ensureGuestSession();
@@ -279,7 +342,7 @@ export async function submitNotificationReply(text: string, conversationId?: str
     body: JSON.stringify({ text, conversationId, notificationType: 'checkin' }),
   });
 }
-export async function updateProfile(profile: {
+type ProfileUpdate = {
   name?: string | null;
   nickname?: string | null;
   companionName?: string | null;
@@ -289,15 +352,140 @@ export async function updateProfile(profile: {
   goals?: string[];
   wakeTime?: string | null;
   sleepTime?: string | null;
-}) {
-  await ensureGuestSession();
-  return request('/me', { method: 'PATCH', body: JSON.stringify(profile) });
+};
+
+type PendingSetup = {
+  profile?: ProfileUpdate;
+  habits: Record<string, boolean>;
+  welcomeXp: boolean;
+};
+
+let setupWrites = Promise.resolve();
+let onboardingSync: AbortController | undefined;
+
+function withSetupWrite<T>(operation: () => Promise<T>) {
+  const version = accountVersion;
+  const next = setupWrites.then(() => {
+    if (version !== accountVersion || changingAccount) throw new Error('Account changed');
+    return operation();
+  });
+  setupWrites = next.then(
+    () => undefined,
+    () => undefined,
+  );
+  return next;
 }
-export async function updateHabitPreference(key: string, enabled: boolean) {
-  await ensureGuestSession();
+
+async function readPendingSetup() {
+  const raw = await AsyncStorage.getItem(pendingSetupKey);
+  return raw ? (JSON.parse(raw) as PendingSetup) : undefined;
+}
+
+function writePendingSetup(setup: PendingSetup) {
+  return setup.profile || Object.keys(setup.habits).length || setup.welcomeXp
+    ? AsyncStorage.setItem(pendingSetupKey, JSON.stringify(setup))
+    : AsyncStorage.removeItem(pendingSetupKey);
+}
+
+export function saveOnboardingSetup(
+  profile: ProfileUpdate & { mood: number },
+  habits: Record<string, boolean>,
+) {
+  const { mood, ...remoteProfile } = profile;
+  return withSetupWrite(() =>
+    AsyncStorage.multiSet([
+      ['solace.profile', JSON.stringify({ ...remoteProfile, mood })],
+      [pendingSetupKey, JSON.stringify({ profile: remoteProfile, habits, welcomeXp: true })],
+    ]),
+  );
+}
+
+function patchProfile(profile: ProfileUpdate, signal?: AbortSignal) {
+  return request('/me', { method: 'PATCH', body: JSON.stringify(profile), signal });
+}
+
+function patchHabit(key: string, enabled: boolean, signal?: AbortSignal) {
   return request(`/habits/${encodeURIComponent(key)}`, {
     method: 'PATCH',
     body: JSON.stringify({ enabled }),
+    signal,
+  });
+}
+
+export function syncOnboardingSetup() {
+  if (onboardingSync || changingAccount) return;
+  const controller = new AbortController();
+  const { signal } = controller;
+  onboardingSync = controller;
+  void withSetupWrite(async () => {
+    const setup = await readPendingSetup();
+    if (!setup || signal.aborted || (await AsyncStorage.getItem('solace.onboarding')) !== 'done')
+      return;
+    const timeout = setTimeout(() => controller.abort(), 20_000);
+    try {
+      await ensureGuestSession();
+      if (signal.aborted) return;
+      if (setup.profile) {
+        await patchProfile(setup.profile, signal);
+        if (signal.aborted) return;
+        delete setup.profile;
+        await writePendingSetup(setup);
+      }
+      const habits = Object.entries(setup.habits);
+      const results = await Promise.allSettled([
+        ...habits.map(([key, enabled]) => patchHabit(key, enabled, signal)),
+        setup.welcomeXp &&
+          request('/gamification/event', {
+            method: 'POST',
+            body: JSON.stringify({
+              type: 'onboarding_completed',
+              amount: 50,
+              eventKey: 'onboarding-completed',
+            }),
+            signal,
+          }),
+      ]);
+      if (signal.aborted) return;
+      habits.forEach(([key], index) => {
+        if (results[index].status === 'fulfilled') delete setup.habits[key];
+      });
+      if (results[habits.length].status === 'fulfilled') setup.welcomeXp = false;
+      await writePendingSetup(setup);
+    } finally {
+      clearTimeout(timeout);
+    }
+  })
+    .catch(() => undefined)
+    .finally(() => {
+      onboardingSync = undefined;
+    });
+}
+
+export function updateProfile(profile: ProfileUpdate) {
+  const version = accountVersion;
+  return withSetupWrite(async () => {
+    await ensureGuestSession();
+    const result = await patchProfile(profile);
+    const setup = await readPendingSetup();
+    if (setup?.profile && version === accountVersion) {
+      for (const key of Object.keys(profile) as (keyof ProfileUpdate)[]) delete setup.profile[key];
+      if (!Object.keys(setup.profile).length) delete setup.profile;
+      await writePendingSetup(setup);
+    }
+    return result;
+  });
+}
+export function updateHabitPreference(key: string, enabled: boolean) {
+  const version = accountVersion;
+  return withSetupWrite(async () => {
+    await ensureGuestSession();
+    const result = await patchHabit(key, enabled);
+    const setup = await readPendingSetup();
+    if (setup && key in setup.habits && version === accountVersion) {
+      delete setup.habits[key];
+      await writePendingSetup(setup);
+    }
+    return result;
   });
 }
 export async function getHabitPreferences() {

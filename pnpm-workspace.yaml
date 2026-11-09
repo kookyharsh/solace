@@ -2,6 +2,9 @@ packages:
   - mobile
   - server
   - packages/*
+nodeLinker: hoisted
+overrides:
+  react-dom: "19.3.0"
 allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true

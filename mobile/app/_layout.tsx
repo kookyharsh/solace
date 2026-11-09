@@ -6,16 +6,29 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts as useInter, Inter_400Regular } from '@expo-google-fonts/inter';
 import { useFonts as useNunito, Nunito_700Bold } from '@expo-google-fonts/nunito';
-import { Text, View } from 'react-native';
+import { AppState, Text, View } from 'react-native';
 import { useEffect } from 'react';
 import { configureNotificationCategories } from '../src/notifications';
 import * as Notifications from 'expo-notifications';
-import { submitNotificationReply } from '../src/api';
+import { submitNotificationReply, syncOnboardingSetup } from '../src/api';
 import { ThemeProvider } from '../src/theme';
 
 export default function RootLayout() {
   const [inter] = useInter({ Inter_400Regular });
   const [nunito] = useNunito({ Nunito_700Bold });
+  useEffect(() => {
+    syncOnboardingSetup();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') syncOnboardingSetup();
+    });
+    const retry = setInterval(() => {
+      if (AppState.currentState === 'active') syncOnboardingSetup();
+    }, 30_000);
+    return () => {
+      clearInterval(retry);
+      subscription.remove();
+    };
+  }, []);
   useEffect(() => {
     void configureNotificationCategories();
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {

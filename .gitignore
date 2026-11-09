@@ -11,3 +11,12 @@ coverage/
 server/prisma/migrations
 server/.env
 references
+.gradle/
+**/android/.gradle/
+**/android
+**/android/build/
+**/android/app/build/
+**/android/.cxx/
+**/local.properties
+local.properties
+*.jks

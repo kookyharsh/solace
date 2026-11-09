@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, GradientBackground } from '../src/components/ui';
 import { useTheme, useThemeMode } from '../src/theme';
 import {
+  requestNotifications,
   scheduleCustomReminder,
   scheduleDefaultDailyReminders,
   scheduleGentleReminder,
@@ -230,9 +231,16 @@ export default function Settings() {
             </Text>
             <Switch
               value={notificationConsent}
-              onValueChange={(value) => {
-                setNotificationConsent(value);
-                void updateProfile({ notificationConsent: value });
+              onValueChange={(enabled) => {
+                if (!enabled) {
+                  setNotificationConsent(false);
+                  void updateProfile({ notificationConsent: false });
+                  return;
+                }
+                void requestNotifications().then((granted) => {
+                  setNotificationConsent(granted);
+                  void updateProfile({ notificationConsent: granted });
+                });
               }}
             />
           </View>

@@ -272,7 +272,7 @@ export function SymbolIcon({
     strokeLinejoin: 'round' as const,
   };
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" accessible={false}>
+    <Svg width={size} height={size} viewBox="0 0 24 24">
       {normalized === 'clock' && (
         <>
           <Circle cx="12" cy="12" r="8.5" fill="none" {...stroke} />

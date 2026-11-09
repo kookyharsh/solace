@@ -12,6 +12,10 @@ Notifications.setNotificationHandler({
 });
 
 export async function configureNotificationCategories() {
+  // Notification action categories are implemented by the iOS/Android native
+  // modules. Expo's web implementation intentionally does not provide them.
+  if (Platform.OS === 'web') return;
+
   await Notifications.setNotificationCategoryAsync('solace-checkin', [
     {
       identifier: 'reply',
@@ -32,6 +36,10 @@ export async function configureNotificationCategories() {
 }
 
 export async function requestNotifications() {
+  // expo-notifications does not provide local scheduling on the web target.
+  // Returning false lets each reminder flow exit without attempting a native call.
+  if (Platform.OS === 'web') return false;
+
   const current = await Notifications.getPermissionsAsync();
   if (current.status !== 'granted') {
     const requested = await Notifications.requestPermissionsAsync();

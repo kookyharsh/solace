@@ -9,17 +9,23 @@ const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
 const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 export const googleSignInConfigured = Boolean(Platform.OS === 'ios' ? iosClientId : googleClientId);
 
-export function useGoogleSignIn(onSuccess: () => void) {
+export function useGoogleSignIn(
+  onMergeStart: () => boolean,
+  onSuccess: () => void,
+  onFailure: () => void,
+) {
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: googleClientId,
     androidClientId: googleClientId,
     iosClientId,
   });
   useEffect(() => {
-    if (response?.type === 'success' && response.authentication?.idToken)
-      void mergeGuestWithGoogle(response.authentication.idToken)
-        .then(onSuccess)
-        .catch(() => undefined);
-  }, [onSuccess, response]);
+    if (response?.type === 'success' && response.authentication?.idToken) {
+      if (onMergeStart())
+        void mergeGuestWithGoogle(response.authentication.idToken).then(onSuccess).catch(onFailure);
+    } else if (response?.type === 'error' || response?.type === 'success') {
+      onFailure();
+    }
+  }, [onFailure, onMergeStart, onSuccess, response]);
   return { ready: !!request, signIn: () => promptAsync() };
 }

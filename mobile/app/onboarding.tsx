@@ -20,7 +20,8 @@ import { MoodChoices, moodLabel, type MoodScore } from '../src/components/MoodCh
 import { ProgressBar } from '../src/components/ui';
 import { useTheme } from '../src/theme';
 import { googleSignInConfigured, useGoogleSignIn } from '../src/googleAuth';
-import { awardXp, ensureGuestSession, updateHabitPreference, updateProfile } from '../src/api';
+import { saveOnboardingSetup, syncOnboardingSetup } from '../src/api';
+import { requestNotifications } from '../src/notifications';
 
 const goals = ['Stress', 'Sleep', 'Focus', 'Loneliness', 'Building habits'];
 const habits = {
@@ -82,13 +83,23 @@ const defaults: Answers = {
 type Turn = { reply: string; acknowledgement: string };
 type Phase = 'greeting' | 'question' | 'thinking' | 'acknowledgement';
 
-function GoogleOption({ onSuccess, disabled }: { onSuccess: () => void; disabled: boolean }) {
-  const google = useGoogleSignIn(onSuccess);
+function GoogleOption({
+  onSuccess,
+  onFailure,
+  onMergeStart,
+  disabled,
+}: {
+  onSuccess: () => void;
+  onFailure: () => void;
+  onMergeStart: () => boolean;
+  disabled: boolean;
+}) {
+  const google = useGoogleSignIn(onMergeStart, onSuccess, onFailure);
   return (
     <Button
       variant="outline"
       isDisabled={disabled || !google.ready}
-      onPress={() => void google.signIn()}
+      onPress={() => void google.signIn().catch(onFailure)}
     >
       Continue with Google
     </Button>
@@ -104,9 +115,12 @@ export default function Onboarding() {
   const [phase, setPhase] = useState<Phase>('greeting');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [requestingNotifications, setRequestingNotifications] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const transcript = useRef<ComponentRef<typeof ScrollView>>(null);
   const submitting = useRef(false);
+  const mergingGoogle = useRef(false);
   const answeredStep = useRef<number | undefined>(undefined);
   const question: Question | undefined = questions[turns.length]?.key;
   const previousQuestion = questions[turns.length - 1]?.key;
@@ -150,21 +164,15 @@ export default function Onboarding() {
     const { habits: selectedHabits, mood, ...profile } = answers;
     const companionName = profile.companionName || null;
     try {
-      await ensureGuestSession();
-      await updateProfile({
-        ...profile,
-        companionName,
-        nickname: profile.nickname || null,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      });
-      const saved = await Promise.allSettled(
-        Object.keys(habits).map((key) => updateHabitPreference(key, selectedHabits.includes(key))),
-      );
-      if (saved.some((item) => item.status === 'rejected'))
-        throw new Error('Habit preferences failed');
-      await AsyncStorage.setItem(
-        'solace.profile',
-        JSON.stringify({ ...profile, companionName, mood: mood ?? 3 }),
+      await saveOnboardingSetup(
+        {
+          ...profile,
+          companionName,
+          nickname: profile.nickname || null,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          mood: mood ?? 3,
+        },
+        Object.fromEntries(Object.keys(habits).map((key) => [key, selectedHabits.includes(key)])),
       );
       setRevealed(true);
     } catch {
@@ -183,16 +191,37 @@ export default function Onboarding() {
     setBusy(true);
     setError('');
     try {
-      await awardXp('onboarding_completed', 50, 'onboarding-completed').catch(() => undefined);
       await AsyncStorage.setItem('solace.onboarding', 'done');
       router.replace('/(tabs)/chat');
+      syncOnboardingSetup();
     } catch {
       setError('I couldn’t open our chat yet. Please try again.');
       submitting.current = false;
       setBusy(false);
     }
   }, []);
-  const completeWithGoogle = useCallback(() => void complete(), [complete]);
+  const beginGoogleMerge = useCallback(() => {
+    if (submitting.current) return false;
+    mergingGoogle.current = true;
+    submitting.current = true;
+    setGoogleBusy(true);
+    setError('');
+    return true;
+  }, []);
+  const completeWithGoogle = useCallback(() => {
+    mergingGoogle.current = false;
+    submitting.current = false;
+    setGoogleBusy(false);
+    void complete();
+  }, [complete]);
+  const googleFailed = useCallback(() => {
+    if (mergingGoogle.current) {
+      mergingGoogle.current = false;
+      submitting.current = false;
+    }
+    setGoogleBusy(false);
+    setError('Google sign-in didn’t finish. You can try again or continue as guest.');
+  }, []);
 
   const submitName = (key: 'companionName' | 'nickname', name: string) => {
     const trimmed = name.trim();
@@ -399,18 +428,36 @@ export default function Onboarding() {
               />
             </View>
             <Button
-              onPress={() =>
-                answer(
-                  question,
-                  allowed,
-                  allowed ? 'Yes, turn it on' : 'Leave it off',
-                  allowed
-                    ? 'Got it. You can change that anytime.'
-                    : 'Of course. We’ll leave it off.',
-                )
-              }
+              isDisabled={requestingNotifications}
+              onPress={() => {
+                if (!allowed) {
+                  answer(question, false, 'Leave it off', 'Of course. We’ll leave it off.');
+                  return;
+                }
+                setRequestingNotifications(true);
+                void requestNotifications()
+                  .then((granted) =>
+                    answer(
+                      question,
+                      granted,
+                      'Yes, turn it on',
+                      granted
+                        ? 'Got it. I’ll keep check-ins gentle. You can change that anytime.'
+                        : 'No problem. Your device has reminders turned off for now. You can enable them in Settings anytime.',
+                    ),
+                  )
+                  .catch(() =>
+                    answer(
+                      question,
+                      false,
+                      'Leave it off',
+                      'No problem. Your device has reminders turned off for now. You can enable them in Settings anytime.',
+                    ),
+                  )
+                  .finally(() => setRequestingNotifications(false));
+              }}
             >
-              Continue
+              {requestingNotifications ? 'Checking…' : 'Continue'}
             </Button>
           </>
         );
@@ -418,7 +465,7 @@ export default function Onboarding() {
       default:
         return (
           <Button isDisabled={busy} onPress={() => void save()}>
-            {busy ? 'Saving your setup…' : 'Meet your companion'}
+            Meet your companion
           </Button>
         );
     }
@@ -459,11 +506,16 @@ export default function Onboarding() {
                 I’m glad we met. When you’re ready, we can pick up right here.
               </Text>
               <View style={{ alignSelf: 'stretch', gap: 8 }}>
-                <Button isDisabled={busy} onPress={() => void complete()}>
+                <Button isDisabled={busy || googleBusy} onPress={() => void complete()}>
                   Continue as guest
                 </Button>
                 {googleSignInConfigured && (
-                  <GoogleOption onSuccess={completeWithGoogle} disabled={busy} />
+                  <GoogleOption
+                    onSuccess={completeWithGoogle}
+                    onFailure={googleFailed}
+                    onMergeStart={beginGoogleMerge}
+                    disabled={busy || googleBusy}
+                  />
                 )}
               </View>
               {!!error && (
