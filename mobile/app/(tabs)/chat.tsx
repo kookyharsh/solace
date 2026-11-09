@@ -16,6 +16,12 @@ import { Input } from 'heroui-native/input';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { isMoodCheckInRequest } from '@solace/contracts';
 import { CompanionBlob } from '../../src/companion/CompanionBlob';
+import {
+  asCompanionState,
+  reactionForMessage,
+  reactionForMood,
+  type CompanionState,
+} from '../../src/companion/companionStates';
 import { Card, Chip } from '../../src/components/ui';
 import {
   ConversationBackground,
@@ -44,6 +50,7 @@ const welcome: CachedChatMessage = {
 const quickReplies = ['I feel low', 'I feel okay', 'I want to reflect'];
 
 type Reveal = { id: string; visible: number; total: number };
+type AvatarReaction = { state: CompanionState; expression?: string };
 
 function replyBubbles(text: string) {
   const pieces = text.split(/([.!?]+(?:\s+|$)|\n{2,})/u);
@@ -69,6 +76,8 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
   );
   const [conversationId, setConversationId] = useState(initialConversationId);
   const [companionName, setCompanionName] = useState('Solace');
+  const [avatarMood, setAvatarMood] = useState<number>();
+  const [avatarReaction, setAvatarReaction] = useState<AvatarReaction>();
   const [draft, setDraft] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -107,7 +116,11 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
     let active = true;
     void AsyncStorage.getItem('solace.profile')
       .then((raw) => {
-        if (active && raw) setCompanionName(JSON.parse(raw).companionName || 'Solace');
+        if (active && raw) {
+          const profile = JSON.parse(raw);
+          setCompanionName(profile.companionName || 'Solace');
+          if (typeof profile.mood === 'number') setAvatarMood(profile.mood);
+        }
       })
       .catch(() => undefined);
     void flushQueuedChatMessages().catch(() => undefined);
@@ -177,6 +190,12 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
     return () => clearTimeout(timer);
   }, [animate, reveal]);
 
+  useEffect(() => {
+    if (!avatarReaction) return;
+    const timer = setTimeout(() => setAvatarReaction(undefined), 1800);
+    return () => clearTimeout(timer);
+  }, [avatarReaction]);
+
   const send = async (value?: string) => {
     const text = (value ?? draft).trim();
     if (!text || !hydrated || request.current || moodRequest.current) return;
@@ -187,6 +206,7 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
     setLiveReplyId(undefined);
     setMoodError(false);
     setReveal(undefined);
+    setAvatarReaction(undefined);
     setHistoryUnavailable(false);
     if (value === undefined) setDraft('');
     follow.current = true;
@@ -230,7 +250,17 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
     setPending(false);
     liveReply.current = reply.id;
     setLiveReplyId(reply.id);
-    if (animate && !reply.parts?.some((part) => part.type === 'crisis_card')) {
+    const crisis = reply.parts?.some((part) => part.type === 'crisis_card');
+    const companion = reply.parts?.find((part) => part.type === 'companion');
+    const celebrating = reply.parts?.some((part) => part.type === 'level_up');
+    let state = asCompanionState(companion?.state) ?? reactionForMessage(text);
+    if (moodCheckIn) state = 'listening';
+    if (celebrating) state = 'proud';
+    if (crisis) state = 'caring';
+    const expression =
+      !crisis && typeof companion?.expression === 'string' ? companion.expression : undefined;
+    setAvatarReaction({ state, expression });
+    if (animate && !crisis) {
       setReveal({ id: reply.id, visible: 1, total: replyBubbles(reply.text).length });
     }
     setMessages((current) => [...current, reply]);
@@ -241,8 +271,14 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
     moodRequest.current = true;
     setSavingMood(true);
     setMoodError(false);
+    setAvatarMood(score);
+    setAvatarReaction({ state: reactionForMood(score) });
     try {
       const saved = await logMood(score, undefined, messageId);
+      if (saved.score !== score) {
+        setAvatarMood(saved.score);
+        setAvatarReaction({ state: reactionForMood(saved.score) });
+      }
       liveReply.current = undefined;
       setLiveReplyId(undefined);
       setMessages((current) =>
@@ -263,6 +299,9 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
   const hasActiveMoodPrompt =
     latestId === liveReplyId && latest?.parts?.some((part) => part.type === 'mood_picker');
   const controlsDisabled = !hydrated || pending || savingMood;
+  const avatarState = pending
+    ? 'thinking'
+    : (avatarReaction?.state ?? (draft.trim() || listening ? 'listening' : 'idle'));
   const scrollToLatest = () => {
     if (follow.current) list.current?.scrollToEnd({ animated: false });
   };
@@ -285,7 +324,13 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
               borderColor: colors.border,
             }}
           >
-            <CompanionBlob size={50} state={pending ? 'thinking' : 'idle'} />
+            <CompanionBlob
+              size={50}
+              state={avatarState}
+              moodScore={avatarMood}
+              expression={avatarReaction?.expression}
+              frozenAt={focused ? 0 : 1}
+            />
             <View style={{ flex: 1, marginRight: 4 }}>
               <Text
                 accessibilityRole="header"
@@ -590,9 +635,8 @@ function RichMessageParts({ item }: { item: CachedChatMessage }) {
             <View key={`companion-${index}`} style={{ marginTop: t.spacing.md }}>
               <CompanionBlob
                 size={72}
-                state={
-                  String(part.state || 'idle') as 'idle' | 'thinking' | 'happy' | 'proud' | 'caring'
-                }
+                state={asCompanionState(part.state)}
+                expression={typeof part.expression === 'string' ? part.expression : undefined}
                 moodScore={typeof part.moodScore === 'number' ? part.moodScore : undefined}
                 frozenAt={1}
               />

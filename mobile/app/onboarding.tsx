@@ -8,6 +8,7 @@ import { Button } from 'heroui-native/button';
 import { Input } from 'heroui-native/input';
 import { Switch } from 'heroui-native/switch';
 import { CompanionBlob } from '../src/companion/CompanionBlob';
+import { reactionForMood, type CompanionState } from '../src/companion/companionStates';
 import {
   ConversationBackground,
   ConversationBubble,
@@ -106,14 +107,20 @@ export default function Onboarding() {
   const [revealed, setRevealed] = useState(false);
   const transcript = useRef<ComponentRef<typeof ScrollView>>(null);
   const submitting = useRef(false);
-  const advancing = useRef(false);
+  const answeredStep = useRef<number | undefined>(undefined);
   const question: Question | undefined = questions[turns.length]?.key;
+  const previousQuestion = questions[turns.length - 1]?.key;
+  let avatarState: CompanionState = question ? 'listening' : 'proud';
+  if (phase === 'greeting') avatarState = 'happy';
+  else if (phase === 'thinking' || busy) avatarState = 'thinking';
+  else if (previousQuestion === 'mood') avatarState = reactionForMood(answers.mood);
+  else if (phase === 'acknowledgement') {
+    avatarState =
+      previousQuestion === 'companionName' || previousQuestion === 'nickname' ? 'happy' : 'speaking';
+  }
 
   useEffect(() => {
-    if (phase === 'question') {
-      advancing.current = false;
-      return;
-    }
+    if (phase === 'question') return;
     if (reduceMotion === undefined) return;
     const next = phase === 'thinking' ? 'acknowledgement' : 'question';
     const timeout = setTimeout(() => setPhase(next), reduceMotion ? 0 : 330);
@@ -126,8 +133,8 @@ export default function Onboarding() {
     reply: string,
     acknowledgement: string,
   ) => {
-    if (advancing.current || phase !== 'question' || question !== key) return;
-    advancing.current = true;
+    if (answeredStep.current === turns.length || phase !== 'question' || question !== key) return;
+    answeredStep.current = turns.length;
     Keyboard.dismiss();
     setError('');
     setAnswers((current) => ({ ...current, [key]: value }));
@@ -478,7 +485,7 @@ export default function Onboarding() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <CompanionBlob
                   size={54}
-                  state={phase === 'thinking' ? 'thinking' : 'happy'}
+                  state={avatarState}
                   moodScore={answers.mood}
                 />
                 <View style={{ flex: 1 }}>

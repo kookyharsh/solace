@@ -1,51 +1,101 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AccessibilityInfo } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { BotEngine } from './engine/engine';
+import { EXPRESSION_BY_ID } from './engine/expressions';
 import { SHAPE_BY_ID } from './engine/skins';
 import { companionStates, type CompanionState } from './companionStates';
 import { colorForMood } from './moodTheme';
 
+const body = SHAPE_BY_ID.get('cercle')?.radii ?? null;
+
 export function CompanionBlob({
   size = 96,
   state = 'idle',
+  expression,
   moodScore,
   color,
   frozenAt = 0,
 }: {
   size?: number;
   state?: CompanionState;
+  expression?: string;
   moodScore?: number;
   color?: string;
   frozenAt?: number;
 }) {
-  const engine = useMemo(
-    () => new BotEngine(100, companionStates[state], SHAPE_BY_ID.get('cercle')?.radii ?? null),
-    [state],
-  );
+  const preset = companionStates[state] ?? companionStates.idle;
+  const face = EXPRESSION_BY_ID.get(expression ?? '') ?? EXPRESSION_BY_ID.get(preset.face) ?? null;
+  const [startedAt] = useState(() => performance.now());
+  const [engine] = useState(() => new BotEngine(100, preset.pose, body, face));
   const [frame, setFrame] = useState(() => engine.sample(frozenAt));
-  const [reduceMotion, setReduceMotion] = useState(false);
-  const last = useRef(state);
+  const [reduceMotion, setReduceMotion] = useState<boolean>();
+  const moving = reduceMotion === false && frozenAt === 0;
+  const bounce = useSharedValue(0);
+  const bodyMotion = useAnimatedStyle(() => ({ transform: [{ translateY: bounce.value }] }));
+
   useEffect(() => {
-    if (last.current !== state) {
-      engine.setState(companionStates[state], frozenAt);
-      last.current = state;
+    if (!moving) {
+      setFrame(new BotEngine(100, preset.pose, body, face).sample(frozenAt));
+      return;
     }
-    setFrame(engine.sample(frozenAt));
-  }, [engine, frozenAt, state]);
+    const now = (performance.now() - startedAt) / 1000;
+    engine.setState(preset.pose, now);
+    engine.setExpression(face, now);
+    setFrame(engine.sample(now));
+  }, [engine, face, frozenAt, moving, preset.pose, startedAt]);
+
   useEffect(() => {
-    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    let active = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then(
+      (value) => {
+        if (active) setReduceMotion(value);
+      },
+      () => {
+        if (active) setReduceMotion(false);
+      },
+    );
     const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => listener.remove();
+    return () => {
+      active = false;
+      listener.remove();
+    };
   }, []);
+
   useEffect(() => {
-    if (reduceMotion || frozenAt !== 0) return;
-    const timer = setInterval(() => setFrame(engine.sample(Date.now() / 1000)), 33);
+    if (!moving) return;
+    const timer = setInterval(
+      () => setFrame(engine.sample((performance.now() - startedAt) / 1000)),
+      33,
+    );
     return () => clearInterval(timer);
-  }, [engine, frozenAt, reduceMotion]);
+  }, [engine, moving, startedAt]);
+
+  useEffect(() => {
+    bounce.value = 0;
+    if (!moving) return;
+    const offset =
+      state === 'proud' || state === 'happy' ? -size * 0.08 : state === 'caring' ? size * 0.04 : 0;
+    if (offset)
+      bounce.value = withSequence(
+        withTiming(offset, { duration: 180 }),
+        withTiming(0, { duration: 280 }),
+      );
+  }, [bounce, moving, size, state]);
+
   const fill = color ?? colorForMood(moodScore);
   return (
-    <View accessible accessibilityLabel="Solace companion" style={{ width: size, height: size }}>
+    <Animated.View
+      accessible
+      accessibilityLabel={preset.label}
+      style={[{ width: size, height: size }, bodyMotion]}
+    >
       <Svg width={size} height={size} viewBox="-120 -120 240 240">
         {frame.dots
           .filter(() => frame.dotsBehind)
@@ -86,6 +136,6 @@ export function CompanionBlob({
           />
         ))}
       </Svg>
-    </View>
+    </Animated.View>
   );
 }
