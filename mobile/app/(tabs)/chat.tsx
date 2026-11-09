@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Button } from 'heroui-native/button';
 import { Input } from 'heroui-native/input';
+import { History, Mic, Plus, Send, Settings, Square } from 'lucide-react-native';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { isMoodCheckInRequest } from '@solace/contracts';
 import { CompanionBlob } from '../../src/companion/CompanionBlob';
@@ -64,11 +65,26 @@ function replyBubbles(text: string) {
 }
 
 export default function Chat() {
-  const { conversationId } = useLocalSearchParams<{ conversationId?: string }>();
-  return <ChatThread key={conversationId ?? 'current'} initialConversationId={conversationId} />;
+  const { conversationId, fresh } = useLocalSearchParams<{
+    conversationId?: string;
+    fresh?: string;
+  }>();
+  return (
+    <ChatThread
+      key={`${conversationId ?? 'current'}-${fresh ?? ''}`}
+      initialConversationId={conversationId}
+      startFresh={!!fresh}
+    />
+  );
 }
 
-function ChatThread({ initialConversationId }: { initialConversationId?: string }) {
+function ChatThread({
+  initialConversationId,
+  startFresh,
+}: {
+  initialConversationId?: string;
+  startFresh: boolean;
+}) {
   const { colors } = useTheme();
   const animate = useConversationReduceMotion() === false;
   const [messages, setMessages] = useState<CachedChatMessage[]>(
@@ -131,7 +147,8 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
         .catch(() => ({ conversationId: undefined, messages: [] }));
       if (!active) return;
       const matching =
-        initialConversationId === undefined || cached.conversationId === initialConversationId;
+        !startFresh &&
+        (initialConversationId === undefined || cached.conversationId === initialConversationId);
       const usable = matching
         ? cached.messages.filter((item) => item.text || item.parts?.length)
         : [];
@@ -168,7 +185,7 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
       active = false;
       request.current?.abort();
     };
-  }, [initialConversationId]);
+  }, [initialConversationId, startFresh]);
 
   useEffect(() => {
     if (!focused || !hydrated || pending || !messages.some((item) => item.id !== welcome.id))
@@ -342,18 +359,28 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
               <Text style={{ color: colors.muted, fontSize: 13 }}>Here with you</Text>
             </View>
             <ConversationIconButton
+              label="Start a new chat"
+              iconNode={<Plus color={colors.ink} size={20} strokeWidth={2.25} />}
+              onPress={() =>
+                router.replace({
+                  pathname: '/(tabs)/chat',
+                  params: { fresh: Date.now().toString() },
+                })
+              }
+            />
+            <ConversationIconButton
               label="Today journal"
               icon="clock"
               onPress={() => router.push('/today')}
             />
             <ConversationIconButton
               label="Chat history"
-              icon="menu"
+              iconNode={<History color={colors.ink} size={20} strokeWidth={2.25} />}
               onPress={() => router.push('/history')}
             />
             <ConversationIconButton
               label="Settings"
-              icon="gear"
+              iconNode={<Settings color={colors.ink} size={20} strokeWidth={2.25} />}
               onPress={() => router.push('/settings')}
             />
           </View>
@@ -470,7 +497,13 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <ConversationIconButton
                   label={listening ? 'Stop voice input' : 'Start voice input'}
-                  icon={listening ? 'stop' : 'mic'}
+                  iconNode={
+                    listening ? (
+                      <Square color={colors.ink} size={20} fill={colors.ink} />
+                    ) : (
+                      <Mic color={colors.ink} size={20} strokeWidth={2.25} />
+                    )
+                  }
                   onPress={() => {
                     if (listening) ExpoSpeechRecognitionModule.stop();
                     else
@@ -500,7 +533,7 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
                 />
                 <ConversationIconButton
                   label="Send message"
-                  icon="send"
+                  iconNode={<Send color={colors.onPrimary} size={20} strokeWidth={2.25} />}
                   primary
                   disabled={controlsDisabled || !draft.trim()}
                   onPress={() => void send()}

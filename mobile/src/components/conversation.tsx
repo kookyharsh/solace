@@ -115,12 +115,14 @@ export function ThinkingBubble({ reduceMotion }: { reduceMotion: boolean }) {
 export function ConversationIconButton({
   label,
   icon,
+  iconNode,
   disabled,
   primary,
   onPress,
 }: {
   label: string;
-  icon: string;
+  icon?: string;
+  iconNode?: ReactNode;
   disabled?: boolean;
   primary?: boolean;
   onPress: () => void;
@@ -135,7 +137,13 @@ export function ConversationIconButton({
       style={{ minWidth: 44, minHeight: 44 }}
       onPress={onPress}
     >
-      <SymbolIcon name={icon} size={20} color={primary ? colors.onPrimary : colors.ink} />
+      {iconNode ?? (
+        <SymbolIcon
+          name={icon ?? 'menu'}
+          size={20}
+          color={primary ? colors.onPrimary : colors.ink}
+        />
+      )}
     </Button>
   );
 }
