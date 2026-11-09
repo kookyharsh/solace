@@ -11,8 +11,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Button } from 'heroui-native/button';
-import { Input } from 'heroui-native/input';
 import { History, Mic, Plus, Send, Settings, Square } from 'lucide-react-native';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { isMoodCheckInRequest } from '@solace/contracts';
@@ -28,12 +26,15 @@ import {
   ConversationBackground,
   ConversationBubble,
   ConversationIconButton,
+  FlatButton as Button,
+  FlatInput as Input,
   ThinkingBubble,
   useConversationReduceMotion,
 } from '../../src/components/conversation';
 import { MoodChoices, moodLabel, type MoodScore } from '../../src/components/MoodChoices';
 import { ChatAction, isMoodCheckInAction } from '../../src/components/chat-actions';
 import { useTheme } from '../../src/theme';
+import { colorForMood } from '../../src/companion/moodTheme';
 import { offlineRepository, type CachedChatMessage } from '../../src/offline/repository';
 import {
   flushQueuedChatMessages,
@@ -208,6 +209,7 @@ function ChatThread({
     if (value === undefined) setDraft('');
     follow.current = true;
     const localId = Date.now() + '-' + sequence.current++;
+    const partialId = localId + '-stream';
     setMessages((current) => [...current, { id: localId + '-user', role: 'user', text }]);
     setPending(true);
 
@@ -219,6 +221,9 @@ function ChatThread({
         conversationId,
         (delta) => {
           assistantText += delta;
+          setMessages((current) => current.some((item) => item.id === partialId)
+            ? current.map((item) => item.id === partialId ? { ...item, text: assistantText } : item)
+            : [...current, { id: partialId, role: 'assistant', text: assistantText }]);
         },
         controller.signal,
       );
@@ -257,11 +262,16 @@ function ChatThread({
     const expression =
       !crisis && typeof companion?.expression === 'string' ? companion.expression : undefined;
     setAvatarReaction({ state, expression });
-    setMessages((current) => [...current, reply]);
+    setMessages((current) => current.some((item) => item.id === partialId)
+      ? current.map((item) => item.id === partialId ? reply : item)
+      : [...current, reply]);
   };
 
   const latest = messages.at(-1);
   const latestId = latest?.id;
+  const currentQuick = hydrated && latestId === liveReplyId
+    ? latest?.parts?.find((part) => part.type === 'quick_replies')
+    : undefined;
   const activeMoodPromptId =
     latest?.parts?.some(
       (part) => part.type === 'mood_picker' || isMoodCheckInAction(part.action),
@@ -321,13 +331,12 @@ function ChatThread({
         >
           <View
             style={{
-              paddingHorizontal: 16,
+              paddingHorizontal: 20,
               paddingVertical: 8,
               flexDirection: 'row',
               alignItems: 'center',
               gap: 6,
-              borderBottomWidth: 1,
-              borderColor: colors.border,
+              borderBottomWidth: 0,
             }}
           >
             <CompanionBlob
@@ -342,7 +351,7 @@ function ChatThread({
               <Text
                 accessibilityRole="header"
                 numberOfLines={1}
-                style={{ color: colors.ink, fontFamily: 'Nunito_700Bold', fontSize: 23 }}
+                style={{ color: colors.ink, fontFamily: 'Nunito_700Bold', fontSize: 28 }}
               >
                 {companionName}
               </Text>
@@ -384,7 +393,7 @@ function ChatThread({
               width: '100%',
               maxWidth: 720,
               alignSelf: 'center',
-              padding: 16,
+              padding: 20,
               gap: 12,
             }}
             onContentSizeChange={scrollToLatest}
@@ -402,40 +411,17 @@ function ChatThread({
             ListFooterComponent={pending ? <ThinkingBubble reduceMotion={!animate} /> : undefined}
             renderItem={({ item }) => {
               if (item.role === 'user') return <ConversationBubble role="user" text={item.text} />;
-              const live = hydrated && item.id === latestId && item.id === liveReplyId;
-              const quick = live && item.parts?.find((part) => part.type === 'quick_replies');
               const mood = activeMoodPromptId === item.id;
               return (
-                <View style={{ gap: 8, alignSelf: 'flex-start', maxWidth: '96%' }}>
+                <View style={{ gap: 8, width: '100%', maxWidth: '100%' }}>
                   <ConversationBubble
                     role="assistant"
                     text={item.text}
-                    animate={animate && item.id === latestId}
                   >
                     <RichMessageParts item={item} />
                   </ConversationBubble>
-                  {!!quick && !mood && (
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-                      {(Array.isArray(quick.options)
-                        ? (quick.options as string[])
-                        : quickReplies
-                      ).map((option) => (
-                        <Button
-                          key={option}
-                          size="sm"
-                          variant="outline"
-                          isDisabled={controlsDisabled}
-                          onPress={() => {
-                            if (liveReply.current === item.id) void send(option);
-                          }}
-                        >
-                          {option}
-                        </Button>
-                      ))}
-                    </View>
-                  )}
                   {!!mood && (
-                    <View style={{ gap: 8, alignSelf: 'flex-start', maxWidth: '100%', marginTop: 4 }}>
+                    <View style={{ gap: 8, width: '100%', maxWidth: 420, marginTop: 4 }}>
                       <MoodChoices
                         disabled={controlsDisabled}
                         onChoose={(score) => void chooseMood(item.id, score)}
@@ -480,6 +466,18 @@ function ChatThread({
                 paddingVertical: 6,
               }}
             >
+              {!!currentQuick && !hasActiveMoodPrompt && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingBottom: 8 }}>
+                  {(Array.isArray(currentQuick.options) ? currentQuick.options as string[] : quickReplies).map((option) => (
+                    <Button key={option} size="sm" variant="outline" isDisabled={controlsDisabled} onPress={() => void send(option)}>{option}</Button>
+                  ))}
+                </View>
+              )}
+              {!hasActiveMoodPrompt && (
+                <View style={{ flexDirection: 'row', paddingBottom: 8 }}>
+                  <Button size="sm" variant="ghost" isDisabled={controlsDisabled} onPress={() => void send('Log my mood')}>Log my mood</Button>
+                </View>
+              )}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <ConversationIconButton
                   label={listening ? 'Stop voice input' : 'Start voice input'}
@@ -515,7 +513,7 @@ function ChatThread({
                   maxLength={4000}
                   returnKeyType="send"
                   containerClassName="flex-1"
-                  style={{ minHeight: 46 }}
+                  style={{ minHeight: 48 }}
                 />
                 <ConversationIconButton
                   label="Send message"
@@ -524,16 +522,6 @@ function ChatThread({
                   disabled={controlsDisabled || !draft.trim()}
                   onPress={() => void send()}
                 />
-              </View>
-              <View style={{ alignSelf: 'flex-start', paddingLeft: 44 }}>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  isDisabled={controlsDisabled || hasActiveMoodPrompt}
-                  onPress={() => void send('Log my mood')}
-                >
-                  Log my mood
-                </Button>
               </View>
             </View>
           </View>
@@ -572,7 +560,7 @@ function RichMessageParts({ item }: { item: CachedChatMessage }) {
                       style={{
                         width: '100%',
                         height: Math.max(6, entry.score * 10),
-                        backgroundColor: t.colors.secondary,
+                        backgroundColor: colorForMood(entry.score),
                         borderRadius: 6,
                       }}
                     />
@@ -633,14 +621,13 @@ function RichMessageParts({ item }: { item: CachedChatMessage }) {
               key={`crisis-${index}`}
               style={{
                 marginTop: t.spacing.md,
-                backgroundColor: '#FFF0EE',
                 gap: t.spacing.sm,
               }}
             >
-              <Text style={{ color: '#7A2E35', fontFamily: 'Nunito_700Bold' }}>
+              <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>
                 You deserve immediate, human support
               </Text>
-              <Text style={{ color: '#7A2E35' }}>
+              <Text style={{ color: t.colors.ink }}>
                 If you may be in danger, contact emergency services or someone you trust now.
               </Text>
               {helplines.map((line) => (
@@ -649,7 +636,7 @@ function RichMessageParts({ item }: { item: CachedChatMessage }) {
                   accessibilityRole="link"
                   onPress={() => void Linking.openURL(line.url ?? `tel:${line.phone}`)}
                 >
-                  <Text style={{ color: '#7A2E35', textDecorationLine: 'underline' }}>
+                  <Text style={{ color: t.colors.ink, textDecorationLine: 'underline' }}>
                     {line.name}: {line.phone ?? line.url}
                   </Text>
                 </Pressable>

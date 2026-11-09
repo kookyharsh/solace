@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { PanResponder, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 import { useTheme } from '../theme';
+import { haptics } from '../haptics';
 
-const moods = [
+export const moods = [
   { score: 1, label: 'Very low', emoji: '😞' },
   { score: 2, label: 'Low', emoji: '😕' },
   { score: 3, label: 'Okay', emoji: '😐' },
@@ -29,119 +30,98 @@ export function MoodChoices({
   disabled?: boolean;
   onChoose: (score: MoodScore) => void;
 }) {
-  const { colors, spacing, radii } = useTheme();
-  const [trackWidth, setTrackWidth] = useState(1);
-  const [preview, setPreview] = useState<MoodScore>(clampScore(value ?? 3));
-  const selected = clampScore(value ?? preview);
-  const mood = moods.find((item) => item.score === preview) ?? moods[2];
+  const { colors } = useTheme();
+  const [selected, setSelected] = useState<MoodScore>(clampScore(value ?? 3));
+  const currentMood = moods.find((item) => item.score === selected) ?? moods[2];
 
   useEffect(() => {
-    if (value !== undefined) setPreview(clampScore(value));
+    if (value !== undefined) setSelected(clampScore(value));
   }, [value]);
 
-  const scoreAt = (x: number) => clampScore(1 + (Math.max(0, Math.min(trackWidth, x)) / trackWidth) * 4);
-  const updatePreview = (x: number) => setPreview(scoreAt(x));
-  const commit = (x: number) => {
+  const handleSelect = (score: MoodScore) => {
     if (disabled) return;
-    const score = scoreAt(x);
-    setPreview(score);
+    void haptics.tap();
+    setSelected(score);
     onChoose(score);
   };
-  const chooseAdjacent = (delta: number) => {
-    if (disabled) return;
-    const score = clampScore(selected + delta);
-    setPreview(score);
-    onChoose(score);
-  };
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => !disabled,
-        onMoveShouldSetPanResponder: () => !disabled,
-        onPanResponderGrant: (event) => updatePreview(event.nativeEvent.locationX),
-        onPanResponderMove: (event) => updatePreview(event.nativeEvent.locationX),
-        onPanResponderRelease: (event) => commit(event.nativeEvent.locationX),
-        onPanResponderTerminate: (event) => commit(event.nativeEvent.locationX),
-      }),
-    [disabled, trackWidth],
-  );
-  const percent = ((preview - 1) / 4) * 100;
 
   return (
-    <View style={{ gap: spacing.sm, opacity: disabled ? 0.5 : 1 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-        <Text accessibilityLabel={mood.label} style={{ fontSize: 34, lineHeight: 42 }}>
-          {mood.emoji}
-        </Text>
-        <View style={{ flex: 1, gap: 2 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <Text style={{ color: colors.ink, fontFamily: 'Nunito_700Bold' }}>{mood.label}</Text>
-            <Text style={{ color: colors.muted, fontVariant: ['tabular-nums'] }}>{preview} / 5</Text>
-          </View>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Slide to describe how today feels</Text>
-        </View>
-      </View>
+    <View
+      style={{
+        width: '100%',
+        minWidth: 0,
+        gap: 12,
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
+      {/* Header with emoji and status */}
       <View
-        accessible
-        accessibilityRole="adjustable"
-        accessibilityLabel="Mood today"
-        accessibilityHint="Swipe or tap to choose a mood from very low to great"
-        accessibilityValue={{ min: 1, max: 5, now: preview, text: mood.label }}
-        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-        onAccessibilityAction={(event) => {
-          if (event.nativeEvent.actionName === 'increment') chooseAdjacent(1);
-          if (event.nativeEvent.actionName === 'decrement') chooseAdjacent(-1);
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
         }}
-        onLayout={(event) => setTrackWidth(Math.max(1, event.nativeEvent.layout.width))}
-        {...panResponder.panHandlers}
-        style={{ height: 40, justifyContent: 'center' }}
       >
-        <View
-          style={{
-            height: 8,
-            borderRadius: radii.pill,
-            backgroundColor: colors.border,
-            overflow: 'hidden',
-          }}
-        >
-          <View
-            style={{
-              width: `${percent}%`,
-              height: '100%',
-              borderRadius: radii.pill,
-              backgroundColor: colors.primary,
-            }}
-          />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text accessibilityLabel={currentMood.label} style={{ fontSize: 32, lineHeight: 38 }}>
+            {currentMood.emoji}
+          </Text>
+          <View style={{ gap: 2 }}>
+            <Text style={{ color: colors.ink, fontFamily: 'Nunito_700Bold', fontSize: 17 }}>
+              {currentMood.label}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 13, fontFamily: 'Inter_400Regular' }}>
+              How is today feeling?
+            </Text>
+          </View>
         </View>
-        <View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            left: `${percent}%`,
-            marginLeft: -14,
-            width: 28,
-            height: 28,
-            borderRadius: 14,
-            backgroundColor: colors.primary,
-            borderWidth: 3,
-            borderColor: colors.surface,
-          }}
-        />
-        <View
-          pointerEvents="none"
-          style={{ position: 'absolute', left: 3, right: 3, flexDirection: 'row', justifyContent: 'space-between' }}
-        >
-          {moods.map((entry) => (
-            <View
-              key={entry.score}
-              style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.surface }}
-            />
-          ))}
+
+        <View>
+          <Text style={{ color: colors.muted, fontFamily: 'Nunito_700Bold', fontSize: 13 }}>
+            {selected} / 5
+          </Text>
         </View>
       </View>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>Very low</Text>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>Great</Text>
+
+      {/* 5 Distinct Touch Targets */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 6, width: '100%' }}>
+        {moods.map((entry) => {
+          const isSelected = selected === entry.score;
+          return (
+            <Pressable
+              key={entry.score}
+              accessibilityRole="button"
+              accessibilityLabel={`${entry.label}, rating ${entry.score} of 5`}
+              accessibilityState={{ selected: isSelected }}
+              disabled={disabled}
+              onPress={() => handleSelect(entry.score)}
+              style={({ pressed }) => ({
+                flex: 1,
+                alignItems: 'center',
+                paddingVertical: 10,
+                paddingHorizontal: 2,
+                borderRadius: 12,
+                backgroundColor: 'transparent',
+                borderWidth: 1,
+                borderColor: isSelected ? colors.accent : colors.divider,
+                opacity: pressed ? 0.6 : 1,
+              })}
+            >
+              <Text style={{ fontSize: 24, lineHeight: 30 }}>{entry.emoji}</Text>
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: colors.ink,
+                  fontSize: 11,
+                  fontFamily: isSelected ? 'Nunito_700Bold' : 'Inter_400Regular',
+                  marginTop: 3,
+                }}
+              >
+                {entry.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
