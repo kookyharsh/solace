@@ -1,51 +1,36 @@
-import { useEffect, useState } from 'react';
-import { Redirect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ActivityIndicator, Text, View } from 'react-native';
-import { CompanionBlob } from '../src/companion/CompanionBlob';
-import { GradientBackground } from '../src/components/ui';
-import { useTheme } from '../src/theme';
+import * as SplashScreen from 'expo-splash-screen';
+import { SplashScreenWrapper } from '../src/components/AnimatedSplashScreen';
 
 export default function Index() {
-  const [ready, setReady] = useState(false);
-  const [done, setDone] = useState(false);
-  const [splash, setSplash] = useState(true);
-  const t = useTheme();
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
+  const [animDone, setAnimDone] = useState(false);
+
+  // Load onboarding state concurrently with the splash animation
   useEffect(() => {
     AsyncStorage.getItem('solace.onboarding').then((value) => {
-      setDone(value === 'done');
-      setReady(true);
+      setOnboardingDone(value === 'done');
     });
-    const timer = setTimeout(() => setSplash(false), 1200);
-    return () => clearTimeout(timer);
   }, []);
-  if (splash)
-    return (
-      <GradientBackground>
-        <View
-          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: t.spacing.lg }}
-        >
-          <CompanionBlob size={132} state="idle" />
-          <Text
-            style={{
-              color: t.colors.ink,
-              fontFamily: 'Nunito_700Bold',
-              fontSize: t.typography.display,
-            }}
-          >
-            Solace
-          </Text>
-          <Text style={{ color: t.colors.muted, fontSize: t.typography.body }}>
-            A gentle place to be heard.
-          </Text>
-        </View>
-      </GradientBackground>
-    );
-  if (!ready)
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator />
-      </View>
-    );
-  return <Redirect href={done ? '/(tabs)/chat' : '/onboarding'} />;
+
+  // As soon as the JS root mounts (fonts are ready), hide the native splash.
+  // The AnimatedSplashScreen component takes over visually from that moment.
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => undefined);
+  }, []);
+
+  // Navigate once BOTH the animation has finished AND onboarding state is known
+  const handleAnimationReady = useCallback(() => {
+    setAnimDone(true);
+  }, []);
+
+  useEffect(() => {
+    if (animDone && onboardingDone !== null) {
+      router.replace(onboardingDone ? '/(tabs)/chat' : '/onboarding');
+    }
+  }, [animDone, onboardingDone]);
+
+  return <SplashScreenWrapper onReady={handleAnimationReady} />;
 }
