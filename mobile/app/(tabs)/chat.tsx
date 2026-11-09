@@ -105,8 +105,13 @@ function ChatThread({
   useFocusEffect(
     useCallback(() => {
       setFocused(true);
+      if (conversationId && !pending) {
+        void getConversationMessages(conversationId).then(items => {
+          setMessages(items.map(item => ({ id: item.id, role: item.role, text: item.parts.filter(part => part.type === 'text').map(part => part.text ?? '').join('\n'), parts: item.parts })));
+        }).catch(() => undefined);
+      }
       return () => setFocused(false);
-    }, []),
+    }, [conversationId, pending]),
   );
 
   useSpeechRecognitionEvent('start', () => setListening(true));

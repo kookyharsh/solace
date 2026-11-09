@@ -103,7 +103,14 @@ export const deviceRequest = z.object({
 export const notificationReplyRequest = z.object({
   text: z.string().trim().min(1).max(2000),
   conversationId: z.string().uuid().optional(),
+  notificationId: z.string().uuid().optional(),
   notificationType: z.string().trim().max(80).optional(),
+});
+export const activityUpdateRequest = z.object({
+  status: z.enum(['scheduled', 'completed', 'cancelled', 'skipped']).optional(),
+  scheduledAt: z.coerce.date().optional(),
+  snoozedUntil: z.coerce.date().nullable().optional(),
+  title: z.string().trim().min(1).max(120).optional(),
 });
 export const reminderRequest = z.object({
   type: z.string().min(1).max(50),

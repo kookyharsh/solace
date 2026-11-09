@@ -17,6 +17,7 @@ import {
   xpEventRequest,
   deviceRequest,
   notificationReplyRequest,
+  activityUpdateRequest,
   reminderRequest,
   reminderUpdateRequest,
   memoryRequest,
@@ -42,6 +43,8 @@ import {
 import { errorHandler, HttpError } from './errors.js';
 import { generateCompanionReply } from './ai.js';
 import { chooseCheckin } from './checkinPlanner.js';
+import { parseActivity } from './activityParser.js';
+import { sendNotificationAnswer } from './notifications.js';
 
 type Db = Pick<
   PrismaClient,
@@ -56,6 +59,7 @@ type Db = Pick<
   | 'xpEvent'
   | 'device'
   | 'reminder'
+  | 'plannedActivity'
   | 'userMemory'
   | 'openLoop'
   | 'checkinPlan'
@@ -276,6 +280,32 @@ export function createApp(
       });
       if (!exists) await db.openLoop.create({ data: { userId, text, sourceMessageId: messageId } });
     }
+  };
+  const handleActivityMessage = async (userId: string, conversationId: string, messageId: string, text: string) => {
+    if (!db.plannedActivity) return null;
+    const pending = await db.plannedActivity.findFirst({ where: { userId, conversationId, status: 'pending' }, orderBy: { createdAt: 'desc' } });
+    if (pending && /\b(?:today|tomorrow|20\d\d-\d\d-\d\d)\b/i.test(text)) {
+      const user = await db.user.findUnique({ where: { id: userId }, select: { timezone: true } });
+      const parsedTime = parseActivity(`remind me ${pending.title} ${text}`, user?.timezone || 'UTC');
+      if (parsedTime?.scheduledAt) {
+        await db.plannedActivity.update({ where: { id: pending.id }, data: { scheduledAt: parsedTime.scheduledAt, followUpAt: new Date(parsedTime.scheduledAt.getTime() + 45 * 60000), status: 'scheduled' } });
+        return `Okay, I’ll remind you about ${pending.title} then.`;
+      }
+    }
+    const closing = /\b(cancel(?:led|ed)?|don't remind me|no longer happening|completed|finished|done)\b/i.test(text);
+    if (closing) {
+      const active = await db.plannedActivity.findMany({ where: { userId, status: { in: ['scheduled', 'pending'] } }, orderBy: { createdAt: 'desc' }, take: 10 });
+      const matched = active.find(item => text.toLowerCase().includes(item.title.toLowerCase().split(' ').find(word => word.length > 4) || '\u0000')) || (active.length === 1 ? active[0] : null);
+      if (matched) {
+        await db.plannedActivity.update({ where: { id: matched.id }, data: { status: /cancel|no longer|don't remind/i.test(text) ? 'cancelled' : 'completed' } });
+        return 'I’ve updated your plan.';
+      }
+    }
+    const user = await db.user.findUnique({ where: { id: userId }, select: { timezone: true } });
+    const parsed = parseActivity(text, user?.timezone || 'UTC');
+    if (!parsed) return null;
+    const activity = await db.plannedActivity.create({ data: { userId, conversationId, sourceMessageId: messageId, title: parsed.title, scheduledAt: parsed.scheduledAt, followUpAt: parsed.scheduledAt ? new Date(parsed.scheduledAt.getTime() + 45 * 60000) : null, explicitReminder: parsed.explicitReminder, status: parsed.scheduledAt ? 'scheduled' : 'pending' } });
+    return activity.status === 'pending' ? 'I can remind you about that. What date and time should I use?' : `I’ll remind you about ${activity.title} and check in afterward.`;
   };
   const updateActivityStreak = async (
     userId: string,
@@ -989,6 +1019,7 @@ export function createApp(
       }
       void awardChatSessionXp(req.userId!, conversation.id).catch(() => undefined);
       void extractSignals(req.userId!, userMessage.id, input.text).catch(() => undefined);
+      const activityNote = await handleActivityMessage(req.userId!, conversation.id, userMessage.id, input.text);
       const profile = await companionContext(req.userId!);
       const reply = await generateCompanionReply(
         input.text,
@@ -1012,7 +1043,7 @@ export function createApp(
         data: {
           conversationId: conversation.id,
           role: 'assistant',
-          parts: [{ type: 'text', text: reply.text }, ...parts] as unknown as Prisma.InputJsonValue,
+          parts: [{ type: 'text', text: activityNote ? `${activityNote}\n${reply.text}` : reply.text }, ...parts] as unknown as Prisma.InputJsonValue,
           source: 'chat',
         },
       });
@@ -1046,6 +1077,7 @@ export function createApp(
       }
       void awardChatSessionXp(req.userId!, conversation.id).catch(() => undefined);
       void extractSignals(req.userId!, userMessage.id, input.text).catch(() => undefined);
+      const activityNote = await handleActivityMessage(req.userId!, conversation.id, userMessage.id, input.text);
       const profile = await companionContext(req.userId!);
       const reply = await generateCompanionReply(
         input.text,
@@ -1058,7 +1090,7 @@ export function createApp(
         data: {
           conversationId: conversation.id,
           role: 'assistant',
-          parts: [{ type: 'text', text: reply.text }, ...parts] as unknown as Prisma.InputJsonValue,
+          parts: [{ type: 'text', text: activityNote ? `${activityNote}\n${reply.text}` : reply.text }, ...parts] as unknown as Prisma.InputJsonValue,
           source: 'chat',
         },
       });
@@ -1067,7 +1099,7 @@ export function createApp(
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
       });
-      for (const chunk of reply.text.match(/[\s\S]{1,24}/gu) ?? [])
+      for (const chunk of (activityNote ? `${activityNote}\n${reply.text}` : reply.text).match(/[\s\S]{1,24}/gu) ?? [])
         res.write(`event: delta\ndata: ${JSON.stringify({ text: chunk })}\n\n`);
       res.write(`event: parts\ndata: ${JSON.stringify({ parts })}\n\n`);
       res.write(
@@ -1360,9 +1392,7 @@ export function createApp(
         ? await db.conversation.findFirst({
             where: { id: input.conversationId, userId: req.userId!, deletedAt: null },
           })
-        : await db.conversation.create({
-            data: { userId: req.userId!, title: 'Notification check-in' },
-          });
+        : (await db.conversation.findFirst({ where: { userId: req.userId!, deletedAt: null }, orderBy: { updatedAt: 'desc' } })) ?? await db.conversation.create({ data: { userId: req.userId!, title: 'Notification check-in' } });
       if (!conversation) throw new HttpError(404, 'NOT_FOUND', 'Conversation not found');
       const userMessage = await db.message.create({
         data: {
@@ -1377,6 +1407,7 @@ export function createApp(
         data: { status: 'resolved' },
       });
       void extractSignals(req.userId!, userMessage.id, input.text).catch(() => undefined);
+      await handleActivityMessage(req.userId!, conversation.id, userMessage.id, input.text);
       const profile = await companionContext(req.userId!);
       const reply = await generateCompanionReply(
         input.text,
@@ -1394,6 +1425,7 @@ export function createApp(
         },
       });
       const notificationDay = await userDayStart(req.userId!);
+      void sendNotificationAnswer(db as PrismaClient, config, req.userId!, conversation.id, reply.text).catch(() => undefined);
       const notificationReplies = await db.xpEvent.count({
         where: {
           userId: req.userId!,
@@ -1427,6 +1459,20 @@ export function createApp(
     } catch (error) {
       next(error);
     }
+  });
+  app.get('/activities', requireAuth(config), async (req, res, next) => {
+    try { res.json(await db.plannedActivity.findMany({ where: { userId: req.userId! }, orderBy: { createdAt: 'desc' } })); } catch (error) { next(error); }
+  });
+  app.patch('/activities/:id', requireAuth(config), async (req, res, next) => {
+    try {
+      const input = activityUpdateRequest.parse(req.body);
+      const activity = await db.plannedActivity.findFirst({ where: { id: String(req.params.id), userId: req.userId! } });
+      if (!activity) throw new HttpError(404, 'NOT_FOUND', 'Activity not found');
+      const scheduledAt = input.scheduledAt ?? activity.scheduledAt;
+      const status = input.status ?? (scheduledAt ? 'scheduled' : activity.status);
+      if (status === 'scheduled' && !scheduledAt) throw new HttpError(400, 'INVALID_TIME', 'Choose a date and time');
+      res.json(await db.plannedActivity.update({ where: { id: activity.id }, data: { ...input, status, followUpAt: input.scheduledAt ? new Date(input.scheduledAt.getTime() + 45 * 60000) : undefined, reminderSentAt: input.scheduledAt ? null : undefined, followUpSentAt: input.scheduledAt ? null : undefined } }));
+    } catch (error) { next(error); }
   });
   app.get('/reminders', requireAuth(config), async (req, res, next) => {
     try {

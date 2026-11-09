@@ -11,7 +11,7 @@ import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { configureNotificationCategories } from '../src/notifications';
 import * as Notifications from 'expo-notifications';
-import { submitNotificationReply, syncOnboardingSetup } from '../src/api';
+import { logMood, submitNotificationReply, syncOnboardingSetup, updateActivity } from '../src/api';
 import { ThemeProvider } from '../src/theme';
 
 // Keep the native splash window visible until we explicitly hide it in index.tsx
@@ -38,14 +38,31 @@ export default function RootLayout() {
 
   useEffect(() => {
     void configureNotificationCategories();
-    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const route = response.notification.request.content.data?.route;
-      if (typeof route === 'string') router.push(route as never);
+    const handled = new Set<string>();
+    const handle = async (response: Notifications.NotificationResponse) => {
+      const responseKey = `${response.notification.request.identifier}:${response.actionIdentifier}`;
+      if (handled.has(responseKey)) return;
+      handled.add(responseKey);
+      const data = response.notification.request.content.data;
+      const conversationId = typeof data?.conversationId === 'string' ? data.conversationId : undefined;
+      const activityId = typeof data?.activityId === 'string' ? data.activityId : undefined;
       const action = response.actionIdentifier;
       const reply = 'userText' in response ? response.userText : undefined;
-      if (action === 'reply' && typeof reply === 'string' && reply.trim())
-        void submitNotificationReply(reply).catch(() => undefined);
-    });
+      try {
+        if (action === 'reply' && typeof reply === 'string' && reply.trim()) {
+          await submitNotificationReply(reply, conversationId);
+        } else if (action.startsWith('mood-')) {
+          await logMood(Number(action.slice(5)));
+        } else if (activityId && ['done', 'cancel', 'snooze'].includes(action)) {
+          await updateActivity(activityId, action === 'snooze' ? { snoozedUntil: new Date(Date.now() + 10 * 60000).toISOString() } : { status: action === 'done' ? 'completed' : 'cancelled' });
+        }
+      } catch (error) { console.warn('Notification action failed', error); }
+      if (action === Notifications.DEFAULT_ACTION_IDENTIFIER || action === 'open' || action === 'start') {
+        router.push(conversationId ? { pathname: '/(tabs)/chat', params: { conversationId } } : '/(tabs)/chat');
+      }
+    };
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => { void handle(response); });
+    void Notifications.getLastNotificationResponseAsync().then(response => { if (response) void handle(response); }).finally(() => { void Notifications.clearLastNotificationResponseAsync(); });
     return () => subscription.remove();
   }, []);
 

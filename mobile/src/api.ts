@@ -387,6 +387,10 @@ export async function submitNotificationReply(text: string, conversationId?: str
     body: JSON.stringify({ text, conversationId, notificationType: 'checkin' }),
   });
 }
+export async function updateActivity(id: string, input: { status?: string; snoozedUntil?: string }) {
+  await ensureGuestSession();
+  return request(`/activities/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
 type ProfileUpdate = {
   name?: string | null;
   nickname?: string | null;

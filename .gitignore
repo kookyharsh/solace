@@ -9,6 +9,10 @@ web-build/
 *.aab
 coverage/
 server/prisma/migrations
+!server/prisma/migrations/
+server/prisma/migrations/*
+!server/prisma/migrations/20261109000000_planned_activities/
+!server/prisma/migrations/20261109000000_planned_activities/migration.sql
 server/.env
 references
 .gradle/

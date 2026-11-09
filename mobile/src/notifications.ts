@@ -25,6 +25,14 @@ export async function configureNotificationCategories() {
       options: { opensAppToForeground: false, isAuthenticationRequired: false },
     },
     { identifier: 'open', buttonTitle: 'Open chat', options: { opensAppToForeground: true } },
+    ...[1, 2, 3, 4, 5].map(score => ({ identifier: `mood-${score}`, buttonTitle: `${score}/5`, options: { opensAppToForeground: false } })),
+  ]);
+  await Notifications.setNotificationCategoryAsync('solace-activity', [
+    { identifier: 'start', buttonTitle: 'Start', options: { opensAppToForeground: true } },
+    { identifier: 'done', buttonTitle: 'Done', options: { opensAppToForeground: false } },
+    { identifier: 'snooze', buttonTitle: 'Snooze', options: { opensAppToForeground: false } },
+    { identifier: 'cancel', buttonTitle: 'Cancel', options: { opensAppToForeground: false } },
+    { identifier: 'reply', buttonTitle: 'Reply', textInput: { submitButtonTitle: 'Send', placeholder: 'How did it go?' }, options: { opensAppToForeground: false } },
   ]);
   await Notifications.setNotificationCategoryAsync('solace-reminder', [
     { identifier: 'start', buttonTitle: 'Start now', options: { opensAppToForeground: true } },

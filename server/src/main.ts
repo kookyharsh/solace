@@ -7,11 +7,12 @@ const config = readConfig();
 const server = createApp(config, db).listen(config.PORT, '0.0.0.0', () => {
   console.log(`Solace API listening on http://0.0.0.0:${config.PORT}`);
 });
+void dispatchContextualNotifications(db, config).catch(error => console.error('Notification dispatch failed', error));
 const notificationTimer = setInterval(
   () => {
-    void dispatchContextualNotifications(db, config).catch(() => undefined);
+    void dispatchContextualNotifications(db, config).catch(error => console.error('Notification dispatch failed', error));
   },
-  15 * 60 * 1000,
+  60 * 1000,
 );
 for (const signal of ['SIGINT', 'SIGTERM'])
   process.on(signal, () => {
