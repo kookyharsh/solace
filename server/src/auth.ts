@@ -14,11 +14,14 @@ export interface GoogleVerifier {
   verify(idToken: string): Promise<GoogleIdentity>;
 }
 
-export function makeGoogleVerifier(clientId: string): GoogleVerifier {
-  const google = new OAuth2Client(clientId);
+export function makeGoogleVerifier(clientId: string | string[]): GoogleVerifier {
+  const audiences = (Array.isArray(clientId) ? clientId : clientId.split(','))
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const google = new OAuth2Client(audiences[0]);
   return {
     async verify(idToken) {
-      const ticket = await google.verifyIdToken({ idToken, audience: clientId });
+      const ticket = await google.verifyIdToken({ idToken, audience: audiences });
       const payload = ticket.getPayload();
       if (!payload?.sub || !payload.email || !payload.email_verified)
         throw new HttpError(401, 'INVALID_GOOGLE_TOKEN', 'Google sign-in failed');
