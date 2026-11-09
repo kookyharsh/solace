@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Pressable, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Card, GradientBackground } from '../src/components/ui';
+import Animated, { SlideInRight, SlideOutLeft, ZoomIn } from 'react-native-reanimated';
+import { GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
 import { awardXp } from '../src/api';
 
@@ -18,6 +19,7 @@ export default function Grounding() {
   const t = useTheme();
   const [step, setStep] = useState(0);
   const done = step >= steps.length;
+
   return (
     <GradientBackground>
       <SafeAreaView
@@ -33,7 +35,22 @@ export default function Grounding() {
         >
           Come back to right now.
         </Text>
-        <Card style={{ gap: t.spacing.md }}>
+
+        {/* Card slides out left and new one slides in from right on each step */}
+        <Animated.View
+          key={step}
+          entering={SlideInRight.springify().damping(18).stiffness(160)}
+          exiting={SlideOutLeft.duration(220)}
+          style={{
+            backgroundColor: t.colors.surface,
+            borderRadius: t.radii.lg,
+            padding: t.spacing.lg,
+            borderWidth: 1,
+            borderColor: t.colors.border,
+            gap: t.spacing.md,
+            ...t.shadows.card,
+          }}
+        >
           <Text
             style={{
               color: t.colors.primary,
@@ -46,30 +63,40 @@ export default function Grounding() {
           <Text style={{ color: t.colors.ink, fontSize: t.typography.body }}>
             {done ? 'A gentle pause still counts.' : steps[step][1]}
           </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              if (done) router.back();
-              else {
-                const next = step + 1;
-                setStep(next);
-                if (next === steps.length)
-                  void awardXp('grounding', 15, `grounding-${new Date().toISOString()}`).catch(
-                    () => undefined,
-                  );
-              }
-            }}
-            style={{
-              backgroundColor: t.colors.primary,
-              borderRadius: t.radii.pill,
-              padding: t.spacing.md,
-            }}
-          >
-            <Text style={{ color: t.colors.onPrimary, textAlign: 'center', fontFamily: 'Nunito_700Bold' }}>
-              {done ? 'Back to wellness' : step === steps.length - 1 ? 'Finish' : 'Next'}
-            </Text>
-          </Pressable>
-        </Card>
+
+          {/* CTA button with spring scale entrance */}
+          <Animated.View entering={ZoomIn.springify().delay(120)}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                if (done) router.back();
+                else {
+                  const next = step + 1;
+                  setStep(next);
+                  if (next === steps.length)
+                    void awardXp('grounding', 15, `grounding-${new Date().toISOString()}`).catch(
+                      () => undefined,
+                    );
+                }
+              }}
+              style={{
+                backgroundColor: t.colors.primary,
+                borderRadius: t.radii.pill,
+                padding: t.spacing.md,
+              }}
+            >
+              <Text
+                style={{
+                  color: t.colors.onPrimary,
+                  textAlign: 'center',
+                  fontFamily: 'Nunito_700Bold',
+                }}
+              >
+                {done ? 'Back to wellness' : step === steps.length - 1 ? 'Finish' : 'Next'}
+              </Text>
+            </Pressable>
+          </Animated.View>
+        </Animated.View>
       </SafeAreaView>
     </GradientBackground>
   );

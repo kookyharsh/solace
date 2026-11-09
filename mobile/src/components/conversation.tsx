@@ -1,9 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button } from 'heroui-native/button';
-import { Skeleton } from 'heroui-native/skeleton';
 import { useTheme } from '../theme';
 import { SymbolIcon } from './ui';
 
@@ -56,7 +64,14 @@ export function ConversationBubble({
   const outgoing = role === 'user';
   return (
     <Animated.View
-      entering={animate ? FadeInDown.duration(200) : undefined}
+      entering={
+        animate
+          ? FadeInDown.springify()
+              .damping(18)
+              .stiffness(140)
+              .easing(Easing.out(Easing.cubic))
+          : undefined
+      }
       style={{
         alignSelf: outgoing ? 'flex-end' : 'flex-start',
         maxWidth: outgoing ? '88%' : '94%',
@@ -88,25 +103,63 @@ export function ConversationBubble({
   );
 }
 
-export function ThinkingBubble({ reduceMotion }: { reduceMotion: boolean }) {
+// ── Animated dot-wave thinking indicator ────────────────────────────────────
+
+function ThinkingDot({ delayMs, reduceMotion }: { delayMs: number; reduceMotion: boolean }) {
   const { colors } = useTheme();
-  const variant = reduceMotion ? 'none' : 'shimmer';
+  const translateY = useSharedValue(0);
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    translateY.value = withDelay(
+      delayMs,
+      withRepeat(
+        withSequence(
+          withTiming(-5, { duration: 320, easing: Easing.out(Easing.quad) }),
+          withTiming(0, { duration: 320, easing: Easing.in(Easing.quad) }),
+          // pause at bottom before next cycle
+          withTiming(0, { duration: 200 }),
+        ),
+        -1,
+        false,
+      ),
+    );
+    return () => {
+      translateY.value = 0;
+    };
+  }, [delayMs, reduceMotion, translateY]);
+
+  const dotStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          width: 8,
+          height: 8,
+          borderRadius: 4,
+          backgroundColor: colors.muted,
+        },
+        dotStyle,
+      ]}
+    />
+  );
+}
+
+export function ThinkingBubble({ reduceMotion }: { reduceMotion: boolean }) {
   return (
     <ConversationBubble>
       <View
         accessible
         accessibilityLabel="Your companion is typing"
         accessibilityLiveRegion="polite"
-        style={{ gap: 8, paddingVertical: 3 }}
+        style={{ gap: 6, paddingVertical: 3, flexDirection: 'row', alignItems: 'center' }}
       >
-        <Skeleton
-          variant={variant}
-          style={{ width: 116, height: 8, borderRadius: 4, backgroundColor: colors.wash }}
-        />
-        <Skeleton
-          variant={variant}
-          style={{ width: 76, height: 8, borderRadius: 4, backgroundColor: colors.wash }}
-        />
+        <ThinkingDot delayMs={0} reduceMotion={reduceMotion} />
+        <ThinkingDot delayMs={160} reduceMotion={reduceMotion} />
+        <ThinkingDot delayMs={320} reduceMotion={reduceMotion} />
       </View>
     </ConversationBubble>
   );
