@@ -25,6 +25,7 @@ import type { EyeCfg } from './states';
 export type ExpressionId =
   | 'neutre'
   | 'attentif'
+  | 'typing'
   | 'surpris'
   | 'excite'
   | 'heureux'
@@ -69,6 +70,12 @@ export const EXPRESSIONS: BotExpression[] = [
     gaze: { yaw: 4, pitch: 5, roll: -4 },
     split: 16,
     eyes: pair(0.21, 0.44),
+  },
+  {
+    id: 'typing',
+    gaze: { yaw: 16, pitch: -20, roll: -4 },
+    split: 16.5,
+    eyes: pair(0.22, 0.4),
   },
   {
     id: 'surpris',

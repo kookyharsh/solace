@@ -283,8 +283,15 @@ function ChatThread({
     setMessages((current) => [...current, reply]);
   };
 
+  const latest = messages.at(-1);
+  const latestId = latest?.id;
+  const activeMoodPromptId =
+    latest?.parts?.some((part) => part.type === 'mood_picker') && !latest.moodLabel
+      ? latest.id
+      : undefined;
+
   const chooseMood = async (messageId: string, score: MoodScore) => {
-    if (liveReply.current !== messageId || moodRequest.current || request.current) return;
+    if (activeMoodPromptId !== messageId || moodRequest.current || request.current) return;
     moodRequest.current = true;
     setSavingMood(true);
     setMoodError(false);
@@ -311,10 +318,7 @@ function ChatThread({
     }
   };
 
-  const latest = messages.at(-1);
-  const latestId = latest?.id;
-  const hasActiveMoodPrompt =
-    latestId === liveReplyId && latest?.parts?.some((part) => part.type === 'mood_picker');
+  const hasActiveMoodPrompt = !!activeMoodPromptId;
   const controlsDisabled = !hydrated || pending || savingMood;
   const avatarState = pending
     ? 'thinking'
@@ -346,6 +350,7 @@ function ChatThread({
               state={avatarState}
               moodScore={avatarMood}
               expression={avatarReaction?.expression}
+              lookAtComposer={!!draft.trim()}
               frozenAt={focused ? 0 : 1}
             />
             <View style={{ flex: 1, marginRight: 4 }}>
@@ -416,7 +421,7 @@ function ChatThread({
               const motion = animate && reveal?.id === item.id ? reveal : undefined;
               const bubbles = replyBubbles(item.text);
               const quick = live && item.parts?.find((part) => part.type === 'quick_replies');
-              const mood = live && item.parts?.some((part) => part.type === 'mood_picker');
+              const mood = activeMoodPromptId === item.id;
               return (
                 <View style={{ gap: 7 }}>
                   {bubbles.slice(0, motion?.visible ?? bubbles.length).map((bubble, index) => (
