@@ -4,7 +4,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button } from 'heroui-native/button';
 import { Skeleton } from 'heroui-native/skeleton';
-import { palette, useTheme } from '../theme';
+import { useTheme } from '../theme';
 import { SymbolIcon } from './ui';
 
 export function useConversationReduceMotion() {
@@ -65,7 +65,7 @@ export function ConversationBubble({
         borderTopRightRadius: outgoing ? 6 : 22,
         borderWidth: outgoing ? 0 : 1,
         borderColor: colors.border,
-        backgroundColor: outgoing ? palette.honey : colors.surface,
+        backgroundColor: outgoing ? colors.accent : colors.surface,
         paddingHorizontal: 16,
         paddingVertical: 11,
         gap: 8,
@@ -74,7 +74,7 @@ export function ConversationBubble({
       {!!text && (
         <Text
           style={{
-            color: outgoing ? palette.espresso : colors.ink,
+            color: colors.ink,
             fontFamily: 'Inter_400Regular',
             fontSize: 16,
             lineHeight: 24,
@@ -115,12 +115,14 @@ export function ThinkingBubble({ reduceMotion }: { reduceMotion: boolean }) {
 export function ConversationIconButton({
   label,
   icon,
+  iconNode,
   disabled,
   primary,
   onPress,
 }: {
   label: string;
-  icon: string;
+  icon?: string;
+  iconNode?: ReactNode;
   disabled?: boolean;
   primary?: boolean;
   onPress: () => void;
@@ -135,7 +137,13 @@ export function ConversationIconButton({
       style={{ minWidth: 44, minHeight: 44 }}
       onPress={onPress}
     >
-      <SymbolIcon name={icon} size={20} color={primary ? palette.espresso : colors.ink} />
+      {iconNode ?? (
+        <SymbolIcon
+          name={icon ?? 'menu'}
+          size={20}
+          color={primary ? colors.onPrimary : colors.ink}
+        />
+      )}
     </Button>
   );
 }
