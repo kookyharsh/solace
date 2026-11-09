@@ -22,7 +22,7 @@ Run `pnpm install`, `pnpm db:generate`, `pnpm db:migrate`, and `pnpm dev`. Seed 
 
 ## Production API
 
-The EAS `preview` profile is configured to call `https://solace-api-sksu.onrender.com`. Configure the corresponding Render service with the existing production `DATABASE_URL`, `GOOGLE_CLIENT_ID`, `JWT_SECRET`, and `JWT_ISSUER` as protected environment variables before distributing the APK.
+The EAS `preview` profile is configured to call `https://solace-api-hackathon.onrender.com`. Configure the corresponding Render service with the existing production `DATABASE_URL`, `GOOGLE_CLIENT_ID`, `JWT_SECRET`, and `JWT_ISSUER` as protected environment variables before distributing the APK.
 
 ## API
 

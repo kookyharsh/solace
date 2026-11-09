@@ -10,7 +10,7 @@
       "distribution": "internal",
       "android": { "buildType": "apk" },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://solace-api-sksu.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://solace-api-hackathon.onrender.com"
       }
     }
   }
