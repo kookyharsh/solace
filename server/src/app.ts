@@ -65,6 +65,54 @@ type Db = Pick<
   | 'dailyChallenge'
   | 'notificationLog'
 >;
+
+type StreakProgress = {
+  xp: number;
+  currentStreak: number;
+  longestStreak: number;
+  lastActiveDate: Date | null;
+  freezesUsedThisWeek: number;
+};
+
+/** A PostgreSQL DATE is a calendar date, not a moment in the user's timezone. */
+export function dateOnlyKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+export function nextStreakCount(
+  previousDay: string | null,
+  todayDay: string,
+  currentStreak: number,
+) {
+  if (previousDay === todayDay) return currentStreak;
+  if (!previousDay) return 1;
+  const today = Date.parse(`${todayDay}T00:00:00.000Z`);
+  const previous = Date.parse(`${previousDay}T00:00:00.000Z`);
+  return today - previous === 86400000 ? currentStreak + 1 : 1;
+}
+
+export function mergeStreakProgress(
+  account: StreakProgress | null,
+  guest: StreakProgress | null,
+): StreakProgress | null {
+  if (!account) return guest;
+  if (!guest) return account;
+  const accountDay = account.lastActiveDate ? dateOnlyKey(account.lastActiveDate) : null;
+  const guestDay = guest.lastActiveDate ? dateOnlyKey(guest.lastActiveDate) : null;
+  const guestIsNewer = !accountDay || (guestDay !== null && guestDay > accountDay);
+  const sameDay = accountDay !== null && accountDay === guestDay;
+  const latest = guestIsNewer ? guest : account;
+  return {
+    xp: account.xp + guest.xp,
+    currentStreak: sameDay
+      ? Math.max(account.currentStreak, guest.currentStreak)
+      : latest.currentStreak,
+    longestStreak: Math.max(account.longestStreak, guest.longestStreak),
+    lastActiveDate: latest.lastActiveDate,
+    freezesUsedThisWeek: Math.max(account.freezesUsedThisWeek, guest.freezesUsedThisWeek),
+  };
+}
+
 export function createApp(
   config: Config,
   db: Db,
@@ -249,12 +297,10 @@ export function createApp(
         day: '2-digit',
       }).format(date);
     const todayKey = calendarDay(new Date());
-    const previousKey = stats.lastActiveDate ? calendarDay(new Date(stats.lastActiveDate)) : null;
+    const previousKey = stats.lastActiveDate ? dateOnlyKey(stats.lastActiveDate) : null;
     if (previousKey === todayKey) return stats;
     const today = new Date(`${todayKey}T00:00:00.000Z`);
-    const previous = previousKey ? new Date(`${previousKey}T00:00:00.000Z`) : null;
-    const currentStreak =
-      previous && today.getTime() - previous.getTime() === 86400000 ? stats.currentStreak + 1 : 1;
+    const currentStreak = nextStreakCount(previousKey, todayKey, stats.currentStreak);
     return db.userStats.update({
       where: { userId },
       data: {
@@ -361,6 +407,10 @@ export function createApp(
       return null;
     });
   const mergeGuestRecords = async (guestId: string, accountId: string) => {
+    const [guestStats, accountStats] = await Promise.all([
+      db.userStats.findUnique({ where: { userId: guestId } }),
+      db.userStats.findUnique({ where: { userId: accountId } }),
+    ]);
     await db.conversation.updateMany({ where: { userId: guestId }, data: { userId: accountId } });
     await db.moodEntry.updateMany({ where: { userId: guestId }, data: { userId: accountId } });
     await db.userMemory.updateMany({ where: { userId: guestId }, data: { userId: accountId } });
@@ -396,6 +446,15 @@ export function createApp(
           },
         })
         .catch(() => undefined);
+    const mergedStats = mergeStreakProgress(accountStats, guestStats);
+    if (mergedStats) {
+      const level = levelForXp(mergedStats.xp).level;
+      await db.userStats.upsert({
+        where: { userId: accountId },
+        create: { userId: accountId, ...mergedStats, level },
+        update: { ...mergedStats, level },
+      });
+    }
     await db.userStats.delete({ where: { userId: guestId } }).catch(() => undefined);
     await db.achievement.deleteMany({ where: { userId: guestId } });
     await db.dailyChallenge.deleteMany({ where: { userId: guestId } });
