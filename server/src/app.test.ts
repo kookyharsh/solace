@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { createApp } from './app.js';
-import { tokenHash } from './auth.js';
+import { signAccessToken, tokenHash } from './auth.js';
 import type { Config } from './config.js';
 import type { PrismaClient } from '@prisma/client';
 
@@ -36,12 +36,39 @@ function fixture(ready = true) {
     user: typeof user;
   };
   const sessions = new Map<string, Session>();
+  const moods = new Map<string, { id: string; userId: string; score: number }>();
+  let messageCount = 0;
   const db = {
     $queryRaw: async () => {
       if (!ready) throw Error('database down');
       return [1];
     },
     user: { upsert: async () => user, findUnique: async () => user },
+    conversation: {
+      create: async () => ({ id: 'da375410-51ec-4ef5-a480-4ca9a7d10a3f', title: 'Test chat' }),
+    },
+    message: {
+      create: async ({ data }: { data: object }) => ({ ...data, id: String(++messageCount) }),
+      count: async () => messageCount,
+    },
+    moodEntry: {
+      findMany: async () => [...moods.values()],
+      create: async ({ data }: { data: { id: string; userId: string; score: number } }) => {
+        if (moods.has(data.id)) throw Object.assign(new Error('duplicate mood'), { code: 'P2002' });
+        moods.set(data.id, data);
+        return data;
+      },
+      findFirstOrThrow: async ({ where }: { where: { id: string; userId: string } }) => {
+        const mood = moods.get(where.id);
+        if (mood?.userId !== where.userId) throw new Error('Mood not found');
+        return mood;
+      },
+    },
+    xpEvent: {
+      create: async () => {
+        throw Object.assign(new Error('XP already awarded'), { code: 'P2002' });
+      },
+    },
     refreshSession: {
       create: async ({
         data,
@@ -67,7 +94,7 @@ function fixture(ready = true) {
   const app = createApp(config, db as unknown as PrismaClient, {
     verify: async () => ({ sub: user.googleId, email: user.email, name: user.name }),
   });
-  return { app, sessions };
+  return { app, sessions, moods };
 }
 describe('foundation API', () => {
   it('reports health and database readiness separately', async () => {
@@ -127,5 +154,65 @@ describe('foundation API', () => {
       (await request(app).post('/auth/refresh').send({ refreshToken: login.body.refreshToken }))
         .status,
     ).toBe(401);
+  });
+});
+
+describe('chat mood check-ins', () => {
+  it.each(['/chat', '/chat/stream'])(
+    'only adds a picker for explicit requests on %s',
+    async (path) => {
+      const { app } = fixture();
+      const token = await signAccessToken(user.id, config);
+      const getParts = async (text: string) => {
+        const response = await request(app)
+          .post(path)
+          .auth(token, { type: 'bearer' })
+          .send({ text });
+        expect(response.status).toBe(200);
+        if (path === '/chat')
+          return response.body.assistantMessage.parts as Array<{ type: string }>;
+        const data = response.text.match(/event: parts\ndata: (.+)\n/)?.[1];
+        expect(data).toBeDefined();
+        return (JSON.parse(data!) as { parts: Array<{ type: string }> }).parts;
+      };
+
+      for (const text of [
+        'I feel tired',
+        'I’m in a bad mood',
+        'I feel 😊',
+        'Show my mood this week',
+      ]) {
+        expect((await getParts(text)).filter((part) => part.type === 'mood_picker')).toHaveLength(
+          0,
+        );
+      }
+      for (const text of ['Log my mood', 'Could I check in on my mood, please?', 'Mood check-in']) {
+        expect((await getParts(text)).filter((part) => part.type === 'mood_picker')).toHaveLength(
+          1,
+        );
+      }
+      const crisis = await getParts('I want to die');
+      expect(crisis.some((part) => part.type === 'crisis_card')).toBe(true);
+      expect(crisis.some((part) => part.type === 'mood_picker')).toBe(false);
+    },
+  );
+
+  it('returns the same saved mood for retries of one check-in', async () => {
+    const { app, moods } = fixture();
+    const token = await signAccessToken(user.id, config);
+    const save = (score: number) =>
+      request(app)
+        .post('/mood')
+        .auth(token, { type: 'bearer' })
+        .send({ score, checkInId: 'reply-1' });
+
+    const first = await save(3);
+    const [retry, repeatedTap] = await Promise.all([save(3), save(4)]);
+    expect(first.status).toBe(201);
+    expect(retry.status).toBe(201);
+    expect(repeatedTap.status).toBe(201);
+    expect(retry.body.id).toBe(first.body.id);
+    expect(repeatedTap.body.score).toBe(3);
+    expect(moods.size).toBe(1);
   });
 });

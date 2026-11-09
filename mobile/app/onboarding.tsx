@@ -18,7 +18,7 @@ import {
 import { MoodChoices, moodLabel, type MoodScore } from '../src/components/MoodChoices';
 import { ProgressBar } from '../src/components/ui';
 import { useTheme } from '../src/theme';
-import { useGoogleSignIn } from '../src/googleAuth';
+import { googleSignInConfigured, useGoogleSignIn } from '../src/googleAuth';
 import { awardXp, ensureGuestSession, updateHabitPreference, updateProfile } from '../src/api';
 
 const goals = ['Stress', 'Sleep', 'Focus', 'Loneliness', 'Building habits'];
@@ -58,7 +58,7 @@ type Question = (typeof questions)[number]['key'];
 type Answers = {
   companionName: string;
   nickname: string;
-  mood: MoodScore;
+  mood?: MoodScore;
   goals: string[];
   habits: string[];
   wakeTime: string;
@@ -70,7 +70,6 @@ type Answers = {
 const defaults: Answers = {
   companionName: '',
   nickname: '',
-  mood: 3,
   goals: [],
   habits: [],
   wakeTime: '08:00',
@@ -164,7 +163,7 @@ export default function Onboarding() {
         throw new Error('Habit preferences failed');
       await AsyncStorage.setItem(
         'solace.profile',
-        JSON.stringify({ ...profile, companionName, mood }),
+        JSON.stringify({ ...profile, companionName, mood: mood ?? 3 }),
       );
       setRevealed(true);
     } catch {
@@ -284,6 +283,7 @@ export default function Onboarding() {
         return (
           <>
             <MoodChoices
+              value={answers.mood}
               onChoose={(score) =>
                 answer(
                   'mood',
@@ -297,7 +297,12 @@ export default function Onboarding() {
               size="sm"
               variant="ghost"
               onPress={() =>
-                answer('mood', 3, 'Skip for now', 'That’s okay. We can check in another time.')
+                answer(
+                  'mood',
+                  undefined,
+                  'Skip for now',
+                  'That’s okay. We can check in another time.',
+                )
               }
             >
               Skip for now
@@ -476,7 +481,7 @@ export default function Onboarding() {
                 <Button isDisabled={busy} onPress={() => void complete()}>
                   Continue as guest
                 </Button>
-                {!!process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID && (
+                {googleSignInConfigured && (
                   <GoogleOption onSuccess={completeWithGoogle} disabled={busy} />
                 )}
               </View>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   FlatList,
@@ -7,17 +7,26 @@ import {
   Platform,
   Pressable,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CompanionBlob } from '../../src/companion/CompanionBlob';
-import { Card, Chip, GradientBackground, IconButton } from '../../src/components/ui';
-import { router } from 'expo-router';
-import { useLocalSearchParams } from 'expo-router';
-import { useTheme } from '../../src/theme';
-import { offlineRepository } from '../../src/offline/repository';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Button } from 'heroui-native/button';
+import { Input } from 'heroui-native/input';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+import { isMoodCheckInRequest } from '@solace/contracts';
+import { CompanionBlob } from '../../src/companion/CompanionBlob';
+import { Card, Chip } from '../../src/components/ui';
+import {
+  ConversationBackground,
+  ConversationBubble,
+  ConversationIconButton,
+  ThinkingBubble,
+  useConversationReduceMotion,
+} from '../../src/components/conversation';
+import { MoodChoices, moodLabel, type MoodScore } from '../../src/components/MoodChoices';
+import { useTheme } from '../../src/theme';
+import { offlineRepository, type CachedChatMessage } from '../../src/offline/repository';
 import {
   flushQueuedChatMessages,
   getConversationMessages,
@@ -26,414 +35,588 @@ import {
   streamChat,
 } from '../../src/api';
 
-type ChatMessage = {
-  id: string;
-  role: 'user' | 'assistant';
-  text: string;
-  parts?: Array<{ type: string; text?: string; [key: string]: unknown }>;
+const welcome: CachedChatMessage = {
+  id: 'welcome',
+  role: 'assistant',
+  text: 'Hey, I’m here with you. What’s on your mind today?',
+  parts: [{ type: 'quick_replies' }],
 };
-const starter: ChatMessage[] = [
-  {
-    id: 'welcome',
-    role: 'assistant',
-    text: 'Hi. I’m here with you. What feels present for you today?',
-    parts: [{ type: 'quick_replies' }],
-  },
-];
+const quickReplies = ['I feel low', 'I feel okay', 'I want to reflect'];
+
+type Reveal = { id: string; visible: number; total: number };
+
+function replyBubbles(text: string) {
+  const pieces = text.split(/([.!?]+(?:\s+|$)|\n{2,})/u);
+  const bubbles: string[] = [];
+  for (let i = 0; i < pieces.length; i += 2) {
+    const bubble = (pieces[i] + (pieces[i + 1] ?? '')).trim();
+    if (bubble) bubbles.push(bubble);
+  }
+  if (bubbles.length > 4) bubbles.splice(3, bubbles.length, bubbles.slice(3).join(' '));
+  return bubbles.length ? bubbles : [''];
+}
 
 export default function Chat() {
-  const t = useTheme();
-  const [messages, setMessages] = useState(starter);
+  const { conversationId } = useLocalSearchParams<{ conversationId?: string }>();
+  return <ChatThread key={conversationId ?? 'current'} initialConversationId={conversationId} />;
+}
+
+function ChatThread({ initialConversationId }: { initialConversationId?: string }) {
+  const { colors } = useTheme();
+  const animate = useConversationReduceMotion() === false;
+  const [messages, setMessages] = useState<CachedChatMessage[]>(
+    initialConversationId ? [] : [welcome],
+  );
+  const [conversationId, setConversationId] = useState(initialConversationId);
+  const [companionName, setCompanionName] = useState('Solace');
   const [draft, setDraft] = useState('');
-  const [thinking, setThinking] = useState(false);
-  const params = useLocalSearchParams<{ conversationId?: string }>();
-  const [conversationId, setConversationId] = useState<string | undefined>(params.conversationId);
-  const [companionName, setCompanionName] = useState('Your companion');
+  const [hydrated, setHydrated] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [historyUnavailable, setHistoryUnavailable] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [reveal, setReveal] = useState<Reveal>();
+  const [liveReplyId, setLiveReplyId] = useState<string | undefined>(
+    initialConversationId ? undefined : welcome.id,
+  );
+  const [savingMood, setSavingMood] = useState(false);
+  const [moodError, setMoodError] = useState(false);
   const [listening, setListening] = useState(false);
+  const list = useRef<FlatList<CachedChatMessage>>(null);
+  const follow = useRef(true);
+  const request = useRef<AbortController | undefined>(undefined);
+  const moodRequest = useRef(false);
+  const liveReply = useRef(liveReplyId);
+  const sequence = useRef(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => setFocused(false);
+    }, []),
+  );
+
   useSpeechRecognitionEvent('start', () => setListening(true));
   useSpeechRecognitionEvent('end', () => setListening(false));
   useSpeechRecognitionEvent('error', () => setListening(false));
   useSpeechRecognitionEvent('result', (event) => {
     const transcript = event.results[0]?.transcript;
-    if (transcript) setDraft(transcript);
+    if (transcript) setDraft(transcript.slice(0, 4000));
   });
+
   useEffect(() => {
-    AsyncStorage.getItem('solace.profile').then((raw) => {
-      if (raw) setCompanionName(JSON.parse(raw).companionName || 'Your companion');
-    });
-  }, []);
-  useEffect(() => {
-    void flushQueuedChatMessages();
-    void offlineRepository.readTranscript().then((cached) => {
-      if (params.conversationId && cached.conversationId !== params.conversationId) return;
-      if (cached.messages.length) {
-        setConversationId((current) => current ?? cached.conversationId);
-        setMessages(cached.messages);
-      }
-    });
-  }, []);
-  useEffect(() => {
-    if (!params.conversationId) return;
-    setConversationId(params.conversationId);
-    void getConversationMessages(params.conversationId)
-      .then((items) => {
-        const next = items.map((item) => ({
-          id: item.id,
-          role: item.role,
-          text: item.parts.find((part) => part.type === 'text')?.text ?? '',
-          parts: item.parts,
-        }));
-        setMessages(next);
-        void offlineRepository.writeTranscript({
-          conversationId: params.conversationId,
-          messages: next,
-        });
+    let active = true;
+    void AsyncStorage.getItem('solace.profile')
+      .then((raw) => {
+        if (active && raw) setCompanionName(JSON.parse(raw).companionName || 'Solace');
       })
       .catch(() => undefined);
-  }, [params.conversationId]);
-  const send = (value = draft) => {
-    const text = value.trim();
-    if (!text || thinking) return;
-    setDraft('');
-    setMessages((current) => [...current, { id: `${Date.now()}-u`, role: 'user', text }]);
-    setThinking(true);
-    const assistantId = `${Date.now()}-a`;
-    setMessages((current) => [...current, { id: assistantId, role: 'assistant', text: '' }]);
-    void streamChat(text, conversationId, (delta) => {
+    void flushQueuedChatMessages().catch(() => undefined);
+
+    async function load() {
+      const cached = await offlineRepository
+        .readTranscript()
+        .catch(() => ({ conversationId: undefined, messages: [] }));
+      if (!active) return;
+      const matching =
+        initialConversationId === undefined || cached.conversationId === initialConversationId;
+      const usable = matching
+        ? cached.messages.filter((item) => item.text || item.parts?.length)
+        : [];
+      if (usable.some((item) => item.id !== welcome.id)) {
+        setMessages(usable);
+        setConversationId(cached.conversationId ?? initialConversationId);
+        liveReply.current = undefined;
+        setLiveReplyId(undefined);
+      }
+      if (initialConversationId) {
+        try {
+          const items = await getConversationMessages(initialConversationId);
+          if (active)
+            setMessages(
+              items.map((item) => ({
+                id: item.id,
+                role: item.role,
+                text: item.parts
+                  .filter((part) => part.type === 'text')
+                  .map((part) => part.text ?? '')
+                  .join('\n'),
+                parts: item.parts,
+                moodLabel: usable.find((message) => message.id === item.id)?.moodLabel,
+              })),
+            );
+        } catch {
+          if (active && !usable.length) setHistoryUnavailable(true);
+        }
+      }
+      if (active) setHydrated(true);
+    }
+    void load();
+    return () => {
+      active = false;
+      request.current?.abort();
+    };
+  }, [initialConversationId]);
+
+  useEffect(() => {
+    if (!focused || !hydrated || pending || !messages.some((item) => item.id !== welcome.id))
+      return;
+    void offlineRepository.writeTranscript({ conversationId, messages }).catch(() => undefined);
+  }, [conversationId, focused, hydrated, messages, pending]);
+
+  useEffect(() => {
+    if (!reveal) return;
+    if (!animate) {
+      setReveal(undefined);
+      return;
+    }
+    const complete = reveal.visible >= reveal.total;
+    const timer = setTimeout(
+      () => setReveal(complete ? undefined : { ...reveal, visible: reveal.visible + 1 }),
+      complete ? 210 : 180,
+    );
+    return () => clearTimeout(timer);
+  }, [animate, reveal]);
+
+  const send = async (value?: string) => {
+    const text = (value ?? draft).trim();
+    if (!text || !hydrated || request.current || moodRequest.current) return;
+    const moodCheckIn = isMoodCheckInRequest(text);
+    const controller = new AbortController();
+    request.current = controller;
+    liveReply.current = undefined;
+    setLiveReplyId(undefined);
+    setMoodError(false);
+    setReveal(undefined);
+    setHistoryUnavailable(false);
+    if (value === undefined) setDraft('');
+    follow.current = true;
+    const localId = Date.now() + '-' + sequence.current++;
+    setMessages((current) => [...current, { id: localId + '-user', role: 'user', text }]);
+    setPending(true);
+
+    let assistantText = '';
+    let reply: CachedChatMessage;
+    try {
+      const response = await streamChat(
+        text,
+        conversationId,
+        (delta) => {
+          assistantText += delta;
+        },
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+      setConversationId(response.conversationId);
+      reply = {
+        id: response.messageId,
+        role: 'assistant',
+        text: assistantText,
+        parts: response.parts.filter((part) => moodCheckIn || part.type !== 'mood_picker'),
+      };
+    } catch {
+      if (controller.signal.aborted) return;
+      if (!moodCheckIn && !assistantText)
+        void queueChatMessage(text, conversationId).catch(() => undefined);
+      reply = {
+        id: localId + '-offline',
+        role: 'assistant',
+        text: moodCheckIn
+          ? 'Let’s check in. Which of these feels closest right now?'
+          : 'I’m having trouble connecting. What part feels heaviest right now?',
+        parts: [{ type: moodCheckIn ? 'mood_picker' : 'quick_replies' }],
+      };
+    }
+    request.current = undefined;
+    setPending(false);
+    liveReply.current = reply.id;
+    setLiveReplyId(reply.id);
+    if (animate && !reply.parts?.some((part) => part.type === 'crisis_card')) {
+      setReveal({ id: reply.id, visible: 1, total: replyBubbles(reply.text).length });
+    }
+    setMessages((current) => [...current, reply]);
+  };
+
+  const chooseMood = async (messageId: string, score: MoodScore) => {
+    if (liveReply.current !== messageId || moodRequest.current || request.current) return;
+    moodRequest.current = true;
+    setSavingMood(true);
+    setMoodError(false);
+    try {
+      const saved = await logMood(score, undefined, messageId);
+      liveReply.current = undefined;
+      setLiveReplyId(undefined);
       setMessages((current) =>
-        current.map((message) =>
-          message.id === assistantId ? { ...message, text: message.text + delta } : message,
+        current.map((item) =>
+          item.id === messageId ? { ...item, moodLabel: moodLabel(saved.score) } : item,
         ),
       );
-    })
-      .then((response) => {
-        setConversationId(response.conversationId);
-        setMessages((current) =>
-          current.map((message) =>
-            message.id === assistantId ? { ...message, parts: response.parts } : message,
-          ),
-        );
-        void offlineRepository.readTranscript().then((cached) =>
-          offlineRepository.writeTranscript({
-            conversationId: response.conversationId,
-            messages: cached.messages.length ? cached.messages : messages,
-          }),
-        );
-      })
-      .catch(() => {
-        void queueChatMessage(text, conversationId);
-        const mood = text.toLowerCase().includes('mood');
-        setMessages((current) => [
-          ...current.filter((message) => message.id !== assistantId),
-          {
-            id: `${Date.now()}-a`,
-            role: 'assistant',
-            text: mood
-              ? 'Let’s check in gently. Which one is closest right now?'
-              : 'Thank you for telling me. I’m listening. What part feels heaviest?',
-            parts: [{ type: mood ? 'mood_picker' : 'quick_replies' }],
-          },
-        ]);
-      })
-      .finally(() => setThinking(false));
+    } catch {
+      setMoodError(true);
+    } finally {
+      moodRequest.current = false;
+      setSavingMood(false);
+    }
   };
-  useEffect(() => {
-    if (!messages.length) return;
-    void offlineRepository.writeTranscript({ conversationId, messages });
-  }, [conversationId, messages]);
-  const quick = useMemo(() => ['I feel low', 'I feel okay', 'I want to reflect'], []);
+
+  const latest = messages.at(-1);
+  const latestId = latest?.id;
+  const hasActiveMoodPrompt =
+    latestId === liveReplyId && latest?.parts?.some((part) => part.type === 'mood_picker');
+  const controlsDisabled = !hydrated || pending || savingMood;
+  const scrollToLatest = () => {
+    if (follow.current) list.current?.scrollToEnd({ animated: false });
+  };
+
   return (
-    <GradientBackground>
-      <SafeAreaView style={{ flex: 1 }}>
-        <View
-          style={{
-            paddingHorizontal: t.spacing.lg,
-            paddingVertical: t.spacing.sm,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: t.spacing.md,
-          }}
+    <ConversationBackground>
+      <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <CompanionBlob size={52} state={thinking ? 'thinking' : 'idle'} />
-          <View>
-            <Text
-              style={{
-                color: t.colors.ink,
-                fontFamily: 'Nunito_700Bold',
-                fontSize: t.typography.title,
-              }}
-            >
-              {companionName}
-            </Text>
-            <Text style={{ color: t.colors.muted }}>A gentle place to be heard</Text>
-          </View>
-          <IconButton label="Today journal" icon="◷" onPress={() => router.push('/today')} />
-          <IconButton label="Chat history" icon="☰" onPress={() => router.push('/history')} />
-        </View>
-        <FlatList
-          data={messages}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: t.spacing.lg, gap: t.spacing.md, paddingBottom: 120 }}
-          renderItem={({ item }) => (
-            <View style={{ alignItems: item.role === 'user' ? 'flex-end' : 'flex-start' }}>
-              <Card
-                style={{
-                  maxWidth: '88%',
-                  backgroundColor: item.role === 'user' ? t.colors.primary : t.colors.surface,
-                }}
+          <View
+            style={{
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+              borderBottomWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <CompanionBlob size={50} state={pending ? 'thinking' : 'idle'} />
+            <View style={{ flex: 1, marginRight: 4 }}>
+              <Text
+                accessibilityRole="header"
+                numberOfLines={1}
+                style={{ color: colors.ink, fontFamily: 'Nunito_700Bold', fontSize: 23 }}
               >
-                <Text
-                  style={{
-                    color: item.role === 'user' ? '#fff' : t.colors.ink,
-                    fontSize: t.typography.body,
-                  }}
-                >
-                  {item.text}
-                </Text>
-                {item.parts?.some((part) => part.type === 'quick_replies') && (
-                  <View style={{ gap: t.spacing.sm, marginTop: t.spacing.md }}>
-                    {(
-                      (item.parts.find((part) => part.type === 'quick_replies')?.options as
-                        string[] | undefined) ?? quick
-                    ).map((option) => (
-                      <Chip key={option} label={option} onPress={() => send(option)} />
-                    ))}
-                  </View>
-                )}
-                {item.parts?.some((part) => part.type === 'mood_picker') && (
-                  <View
-                    style={{ flexDirection: 'row', gap: t.spacing.sm, marginTop: t.spacing.md }}
-                  >
-                    {['😔', '🙁', '😐', '🙂', '😊'].map((emoji, index) => (
-                      <Pressable
-                        key={emoji}
-                        accessibilityLabel={`Mood ${emoji}`}
-                        onPress={() => {
-                          void logMood(index + 1).catch(() => undefined);
-                          send(`I feel ${emoji}`);
-                        }}
-                      >
-                        <Text style={{ fontSize: 28 }}>{emoji}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-                {item.parts?.map((part, index) => {
-                  if (part.type === 'mood_chart') {
-                    const entries = Array.isArray(part.entries)
-                      ? (part.entries as Array<{ score: number }>).slice(-7)
-                      : [];
-                    return (
-                      <View key={`mood-${index}`} style={{ marginTop: t.spacing.md, gap: 6 }}>
-                        <Text style={{ color: t.colors.muted }}>Mood this week</Text>
-                        <View
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'flex-end',
-                            height: 58,
-                            gap: 5,
-                          }}
-                        >
-                          {entries.map((entry, entryIndex) => (
-                            <View
-                              key={`${entryIndex}-${entry.score}`}
-                              style={{ flex: 1, alignItems: 'center' }}
+                {companionName}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Here with you</Text>
+            </View>
+            <ConversationIconButton
+              label="Today journal"
+              icon="clock"
+              onPress={() => router.push('/today')}
+            />
+            <ConversationIconButton
+              label="Chat history"
+              icon="menu"
+              onPress={() => router.push('/history')}
+            />
+          </View>
+          <FlatList
+            ref={list}
+            style={{ flex: 1 }}
+            data={messages}
+            keyExtractor={(item) => item.id}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{
+              width: '100%',
+              maxWidth: 720,
+              alignSelf: 'center',
+              padding: 16,
+              gap: 12,
+            }}
+            onContentSizeChange={scrollToLatest}
+            onLayout={scrollToLatest}
+            onScroll={({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }) => {
+              follow.current =
+                contentSize.height - layoutMeasurement.height - contentOffset.y < 110;
+            }}
+            scrollEventThrottle={32}
+            ListEmptyComponent={
+              historyUnavailable ? (
+                <ConversationBubble text="I couldn’t load this conversation. You can try again from your chat history." />
+              ) : undefined
+            }
+            ListFooterComponent={pending ? <ThinkingBubble reduceMotion={!animate} /> : undefined}
+            renderItem={({ item }) => {
+              if (item.role === 'user') return <ConversationBubble role="user" text={item.text} />;
+              const live = hydrated && item.id === latestId && item.id === liveReplyId;
+              const motion = animate && reveal?.id === item.id ? reveal : undefined;
+              const bubbles = replyBubbles(item.text);
+              const quick = live && item.parts?.find((part) => part.type === 'quick_replies');
+              const mood = live && item.parts?.some((part) => part.type === 'mood_picker');
+              return (
+                <View style={{ gap: 7 }}>
+                  {bubbles.slice(0, motion?.visible ?? bubbles.length).map((bubble, index) => (
+                    <ConversationBubble key={index} text={bubble} animate={!!motion}>
+                      {index === bubbles.length - 1 && <RichMessageParts item={item} />}
+                    </ConversationBubble>
+                  ))}
+                  {(!motion || motion.visible >= bubbles.length) && (
+                    <>
+                      {!!quick && !mood && (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                          {(Array.isArray(quick.options)
+                            ? (quick.options as string[])
+                            : quickReplies
+                          ).map((option) => (
+                            <Button
+                              key={option}
+                              size="sm"
+                              variant="outline"
+                              isDisabled={controlsDisabled}
+                              onPress={() => {
+                                if (liveReply.current === item.id) void send(option);
+                              }}
                             >
-                              <View
-                                style={{
-                                  width: '100%',
-                                  height: Math.max(6, entry.score * 10),
-                                  backgroundColor: t.colors.secondary,
-                                  borderRadius: 6,
-                                }}
-                              />
-                            </View>
+                              {option}
+                            </Button>
                           ))}
                         </View>
-                      </View>
-                    );
-                  }
-                  if (part.type === 'xp_card')
-                    return (
-                      <Card key={`xp-${index}`} style={{ marginTop: t.spacing.md, gap: 4 }}>
-                        <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>
-                          Level {String(part.level)} · {String(part.xp)} XP
-                        </Text>
-                        <Text style={{ color: t.colors.muted }}>
-                          {String(part.xpIntoLevel)} / {String(part.xpForNext)} to the next level
-                        </Text>
-                      </Card>
-                    );
-                  if (part.type === 'streak_card')
-                    return (
-                      <Text
-                        key={`streak-${index}`}
-                        style={{ color: t.colors.primary, marginTop: t.spacing.md }}
-                      >
-                        {String(part.current)} day streak · best {String(part.longest)}
-                      </Text>
-                    );
-                  if (part.type === 'quote_card')
-                    return (
-                      <Card key={`quote-${index}`} style={{ marginTop: t.spacing.md }}>
-                        <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>
-                          {String(part.text)}
-                        </Text>
-                        <Text style={{ color: t.colors.muted, marginTop: 4 }}>
-                          — {String(part.author)}
-                        </Text>
-                      </Card>
-                    );
-                  if (part.type === 'activity_card')
-                    return (
-                      <Chip
-                        key={`activity-${index}`}
-                        label={`${String(part.title)} · +${String(part.xp)} XP`}
-                        onPress={() =>
-                          router.push(
-                            String(part.kind) === 'breathing' ? '/breathing' : '/grounding',
-                          )
-                        }
-                      />
-                    );
-                  if (part.type === 'crisis_card') {
-                    const helplines = Array.isArray(part.helplines)
-                      ? (part.helplines as Array<{ name?: string; phone?: string; url?: string }>)
-                      : [];
-                    return (
-                      <Card
-                        key={`crisis-${index}`}
-                        style={{
-                          marginTop: t.spacing.md,
-                          backgroundColor: '#FFF0EE',
-                          gap: t.spacing.sm,
-                        }}
-                      >
-                        <Text style={{ color: '#7A2E35', fontFamily: 'Nunito_700Bold' }}>
-                          You deserve immediate, human support
-                        </Text>
-                        <Text style={{ color: '#7A2E35' }}>
-                          If you may be in danger, contact emergency services or someone you trust
-                          now.
-                        </Text>
-                        {helplines.map((line) => (
-                          <Pressable
-                            key={`${line.name}-${line.phone ?? line.url}`}
-                            accessibilityRole="link"
-                            onPress={() => void Linking.openURL(line.url ?? `tel:${line.phone}`)}
-                          >
-                            <Text
-                              style={{ color: t.colors.primary, textDecorationLine: 'underline' }}
-                            >
-                              {line.name}: {line.phone ?? line.url}
+                      )}
+                      {!!mood && (
+                        <View style={{ gap: 8, alignSelf: 'flex-start', maxWidth: '100%' }}>
+                          <MoodChoices
+                            disabled={controlsDisabled}
+                            onChoose={(score) => void chooseMood(item.id, score)}
+                          />
+                          {savingMood && (
+                            <Text accessibilityLiveRegion="polite" style={{ color: colors.muted }}>
+                              Saving your check-in…
                             </Text>
-                          </Pressable>
-                        ))}
-                      </Card>
-                    );
-                  }
-                  if (part.type === 'companion')
-                    return (
-                      <View key={`companion-${index}`} style={{ marginTop: t.spacing.md }}>
-                        <CompanionBlob
-                          size={72}
-                          state={
-                            String(part.state || 'idle') as
-                              'idle' | 'thinking' | 'happy' | 'proud' | 'caring'
-                          }
-                          moodScore={
-                            typeof part.moodScore === 'number' ? part.moodScore : undefined
-                          }
-                          frozenAt={1}
-                        />
-                      </View>
-                    );
-                  if (part.type === 'level_up')
-                    return (
-                      <Card
-                        key={`level-${index}`}
-                        style={{ marginTop: t.spacing.md, gap: t.spacing.sm }}
-                      >
+                          )}
+                          {moodError && (
+                            <Text accessibilityRole="alert" style={{ color: colors.ink }}>
+                              I couldn’t save that check-in. Tap your choice to try again.
+                            </Text>
+                          )}
+                        </View>
+                      )}
+                      {!!item.moodLabel && (
                         <Text
-                          style={{
-                            color: t.colors.primary,
-                            fontFamily: 'Nunito_700Bold',
-                            fontSize: t.typography.title,
-                          }}
+                          accessibilityLiveRegion="polite"
+                          style={{ color: colors.primary, fontFamily: 'Nunito_700Bold' }}
                         >
-                          A new level is blooming
+                          {'Mood saved · ' + item.moodLabel}
                         </Text>
-                        <Text style={{ color: t.colors.ink }}>
-                          Level {String(part.level)} ·{' '}
-                          {String(part.unlock ?? 'A new companion moment')}
-                        </Text>
-                      </Card>
-                    );
-                  return null;
-                })}
-              </Card>
-            </View>
-          )}
-        />
-        {thinking && (
-          <Text
-            style={{ position: 'absolute', bottom: 90, left: t.spacing.lg, color: t.colors.muted }}
+                      )}
+                    </>
+                  )}
+                </View>
+              );
+            }}
+          />
+          <View
+            style={{
+              borderTopWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.background,
+            }}
           >
-            Your companion is thinking…
-          </Text>
-        )}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={10}
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            padding: t.spacing.md,
-            backgroundColor: t.colors.background,
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm }}>
-            <IconButton
-              label={listening ? 'Stop voice input' : 'Start voice input'}
-              icon={listening ? '■' : '🎙'}
-              onPress={() => {
-                if (listening) ExpoSpeechRecognitionModule.stop();
-                else {
-                  void ExpoSpeechRecognitionModule.requestPermissionsAsync().then((permission) => {
-                    if (permission.granted)
-                      ExpoSpeechRecognitionModule.start({
-                        lang: 'en-IN',
-                        interimResults: true,
-                        continuous: false,
-                        addsPunctuation: true,
-                      });
-                  });
-                }
-              }}
-            />
-            <TextInput
-              accessibilityLabel="Message your companion"
-              value={draft}
-              onChangeText={setDraft}
-              onSubmitEditing={() => send()}
-              placeholder="Talk to your companion…"
-              placeholderTextColor={t.colors.muted}
+            <View
               style={{
-                flex: 1,
-                backgroundColor: t.colors.surface,
-                color: t.colors.ink,
-                borderRadius: t.radii.pill,
-                paddingHorizontal: t.spacing.md,
-                paddingVertical: t.spacing.sm,
-                fontSize: t.typography.body,
+                width: '100%',
+                maxWidth: 720,
+                alignSelf: 'center',
+                paddingHorizontal: 12,
+                paddingVertical: 6,
               }}
-            />
-            <IconButton label="Send message" icon="↑" onPress={() => send()} />
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <ConversationIconButton
+                  label={listening ? 'Stop voice input' : 'Start voice input'}
+                  icon={listening ? 'stop' : 'mic'}
+                  onPress={() => {
+                    if (listening) ExpoSpeechRecognitionModule.stop();
+                    else
+                      void ExpoSpeechRecognitionModule.requestPermissionsAsync()
+                        .then((permission) => {
+                          if (permission.granted)
+                            ExpoSpeechRecognitionModule.start({
+                              lang: 'en-IN',
+                              interimResults: true,
+                              continuous: false,
+                              addsPunctuation: true,
+                            });
+                        })
+                        .catch(() => undefined);
+                  }}
+                />
+                <Input
+                  accessibilityLabel="Message your companion"
+                  value={draft}
+                  onChangeText={setDraft}
+                  onSubmitEditing={() => void send()}
+                  placeholder="What’s on your mind?"
+                  maxLength={4000}
+                  returnKeyType="send"
+                  containerClassName="flex-1"
+                  style={{ minHeight: 46 }}
+                />
+                <ConversationIconButton
+                  label="Send message"
+                  icon="send"
+                  primary
+                  disabled={controlsDisabled || !draft.trim()}
+                  onPress={() => void send()}
+                />
+              </View>
+              <View style={{ alignSelf: 'flex-start', paddingLeft: 44 }}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  isDisabled={controlsDisabled || hasActiveMoodPrompt}
+                  onPress={() => void send('Log my mood')}
+                >
+                  Log my mood
+                </Button>
+              </View>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </GradientBackground>
+    </ConversationBackground>
+  );
+}
+
+function RichMessageParts({ item }: { item: CachedChatMessage }) {
+  const t = useTheme();
+  return (
+    <>
+      {item.parts?.map((part, index) => {
+        if (part.type === 'mood_chart') {
+          const entries = Array.isArray(part.entries)
+            ? (part.entries as Array<{ score: number }>).slice(-7)
+            : [];
+          return (
+            <View key={`mood-${index}`} style={{ marginTop: t.spacing.md, gap: 6 }}>
+              <Text style={{ color: t.colors.muted }}>Mood this week</Text>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'flex-end',
+                  height: 58,
+                  gap: 5,
+                }}
+              >
+                {entries.map((entry, entryIndex) => (
+                  <View
+                    key={`${entryIndex}-${entry.score}`}
+                    style={{ flex: 1, alignItems: 'center' }}
+                  >
+                    <View
+                      style={{
+                        width: '100%',
+                        height: Math.max(6, entry.score * 10),
+                        backgroundColor: t.colors.secondary,
+                        borderRadius: 6,
+                      }}
+                    />
+                  </View>
+                ))}
+              </View>
+            </View>
+          );
+        }
+        if (part.type === 'xp_card')
+          return (
+            <Card key={`xp-${index}`} style={{ marginTop: t.spacing.md, gap: 4 }}>
+              <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>
+                Level {String(part.level)} · {String(part.xp)} XP
+              </Text>
+              <Text style={{ color: t.colors.muted }}>
+                {String(part.xpIntoLevel)} / {String(part.xpForNext)} to the next level
+              </Text>
+            </Card>
+          );
+        if (part.type === 'streak_card')
+          return (
+            <Text
+              key={`streak-${index}`}
+              style={{ color: t.colors.primary, marginTop: t.spacing.md }}
+            >
+              {String(part.current)} day streak · best {String(part.longest)}
+            </Text>
+          );
+        if (part.type === 'quote_card')
+          return (
+            <Card key={`quote-${index}`} style={{ marginTop: t.spacing.md }}>
+              <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>
+                {String(part.text)}
+              </Text>
+              <Text style={{ color: t.colors.muted, marginTop: 4 }}>— {String(part.author)}</Text>
+            </Card>
+          );
+        if (part.type === 'activity_card')
+          return (
+            <Chip
+              key={`activity-${index}`}
+              label={`${String(part.title)} · +${String(part.xp)} XP`}
+              onPress={() =>
+                router.push(String(part.kind) === 'breathing' ? '/breathing' : '/grounding')
+              }
+            />
+          );
+        if (part.type === 'crisis_card') {
+          const helplines = Array.isArray(part.helplines)
+            ? (part.helplines as Array<{ name?: string; phone?: string; url?: string }>)
+            : [];
+          return (
+            <Card
+              key={`crisis-${index}`}
+              style={{
+                marginTop: t.spacing.md,
+                backgroundColor: '#FFF0EE',
+                gap: t.spacing.sm,
+              }}
+            >
+              <Text style={{ color: '#7A2E35', fontFamily: 'Nunito_700Bold' }}>
+                You deserve immediate, human support
+              </Text>
+              <Text style={{ color: '#7A2E35' }}>
+                If you may be in danger, contact emergency services or someone you trust now.
+              </Text>
+              {helplines.map((line) => (
+                <Pressable
+                  key={`${line.name}-${line.phone ?? line.url}`}
+                  accessibilityRole="link"
+                  onPress={() => void Linking.openURL(line.url ?? `tel:${line.phone}`)}
+                >
+                  <Text style={{ color: '#7A2E35', textDecorationLine: 'underline' }}>
+                    {line.name}: {line.phone ?? line.url}
+                  </Text>
+                </Pressable>
+              ))}
+            </Card>
+          );
+        }
+        if (part.type === 'companion')
+          return (
+            <View key={`companion-${index}`} style={{ marginTop: t.spacing.md }}>
+              <CompanionBlob
+                size={72}
+                state={
+                  String(part.state || 'idle') as 'idle' | 'thinking' | 'happy' | 'proud' | 'caring'
+                }
+                moodScore={typeof part.moodScore === 'number' ? part.moodScore : undefined}
+                frozenAt={1}
+              />
+            </View>
+          );
+        if (part.type === 'level_up')
+          return (
+            <Card key={`level-${index}`} style={{ marginTop: t.spacing.md, gap: t.spacing.sm }}>
+              <Text
+                style={{
+                  color: t.colors.primary,
+                  fontFamily: 'Nunito_700Bold',
+                  fontSize: t.typography.title,
+                }}
+              >
+                A new level is blooming
+              </Text>
+              <Text style={{ color: t.colors.ink }}>
+                Level {String(part.level)} · {String(part.unlock ?? 'A new companion moment')}
+              </Text>
+            </Card>
+          );
+        return null;
+      })}
+    </>
   );
 }

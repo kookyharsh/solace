@@ -5,6 +5,7 @@ export type CachedChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  moodLabel?: string;
   parts?: Array<{ type: string; text?: string; [key: string]: unknown }>;
 };
 

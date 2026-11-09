@@ -33,8 +33,8 @@ const moods = [
 
 export type MoodScore = (typeof moods)[number]['score'];
 
-export function moodLabel(score: MoodScore) {
-  return moods[score - 1].label;
+export function moodLabel(score: number) {
+  return moods.find((mood) => mood.score === score)?.label ?? 'Check-in';
 }
 
 export function MoodChoices({

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { fetch as fetchStream } from 'expo/fetch';
 import { offlineRepository } from './offline/repository';
 
 const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:4000';
@@ -106,19 +107,24 @@ export async function streamChat(
   text: string,
   conversationId: string | undefined,
   onDelta: (text: string) => void,
+  signal?: AbortSignal,
 ) {
   await ensureGuestSession();
-  const accessToken = await AsyncStorage.getItem('solace.accessToken');
-  const response = await fetch(`${baseUrl}/chat/stream`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
-    },
-    body: JSON.stringify({ text, conversationId }),
-  });
-  if (response.status === 401 && (await refreshAccessToken()))
-    return streamChat(text, conversationId, onDelta);
+  const post = async () => {
+    const accessToken = await AsyncStorage.getItem('solace.accessToken');
+    return fetchStream(`${baseUrl}/chat/stream`, {
+      method: 'POST',
+      headers: {
+        accept: 'text/event-stream',
+        'content-type': 'application/json',
+        ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify({ text, conversationId }),
+      signal,
+    });
+  };
+  let response = await post();
+  if (response.status === 401 && (await refreshAccessToken())) response = await post();
   if (!response.ok || !response.body) throw new Error(`API ${response.status}`);
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -150,31 +156,47 @@ export async function streamChat(
   if (!done) throw new Error('Stream ended without completion');
   return { ...done, parts };
 }
-export async function queueChatMessage(text: string, conversationId?: string) {
-  const queue = await offlineRepository.readChatQueue();
-  queue.push({ text, conversationId });
-  await offlineRepository.writeChatQueue(queue.slice(-50));
+let chatQueueOperation = Promise.resolve();
+
+function updateChatQueue(operation: () => Promise<void>) {
+  const next = chatQueueOperation.then(operation);
+  chatQueueOperation = next.catch(() => undefined);
+  return next;
 }
-export async function flushQueuedChatMessages() {
-  const queue = await offlineRepository.readChatQueue();
-  if (!queue.length) return;
-  const remaining: typeof queue = [];
-  for (const item of queue) {
-    try {
-      await sendChat(item.text, item.conversationId);
-    } catch {
-      remaining.push(item);
+
+export function queueChatMessage(text: string, conversationId?: string) {
+  return updateChatQueue(async () => {
+    const queue = await offlineRepository.readChatQueue();
+    queue.push({ text, conversationId });
+    await offlineRepository.writeChatQueue(queue.slice(-50));
+  });
+}
+
+export function flushQueuedChatMessages() {
+  return updateChatQueue(async () => {
+    const queue = await offlineRepository.readChatQueue();
+    if (!queue.length) return;
+    const remaining: typeof queue = [];
+    for (const item of queue) {
+      try {
+        await sendChat(item.text, item.conversationId);
+      } catch {
+        remaining.push(item);
+      }
     }
-  }
-  await offlineRepository.writeChatQueue(remaining);
+    await offlineRepository.writeChatQueue(remaining);
+  });
 }
 export async function exportAccount() {
   await ensureGuestSession();
   return request<Record<string, unknown>>('/me/export');
 }
-export async function logMood(score: number, note?: string) {
+export async function logMood(score: number, note?: string, checkInId?: string) {
   await ensureGuestSession();
-  return request('/mood', { method: 'POST', body: JSON.stringify({ score, note }) });
+  return request<{ score: number }>('/mood', {
+    method: 'POST',
+    body: JSON.stringify({ score, note, checkInId }),
+  });
 }
 export async function getMood(range = 7) {
   await ensureGuestSession();

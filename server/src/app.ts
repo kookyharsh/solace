@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import pino from 'pino';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   googleAuthRequest,
   guestMergeRequest,
@@ -81,7 +81,7 @@ export function createApp(
       });
     const lower = text.toLowerCase();
     const parts = [...replyParts];
-    if (lower.includes('mood') || lower.includes('week') || lower.includes('feeling')) {
+    if (!parts.some((part) => part.type === 'mood_picker') && /mood|week|feeling/.test(lower)) {
       const entries = await db.moodEntry.findMany({
         where: { userId, createdAt: { gte: new Date(Date.now() - 7 * 86400000) }, deletedAt: null },
         orderBy: { createdAt: 'asc' },
@@ -122,7 +122,6 @@ export function createApp(
         xp: 15,
       });
     }
-    if (lower.includes('feel') || lower.includes('mood')) parts.push({ type: 'mood_picker' });
     if (lower.includes('quote') || lower.includes('inspire')) {
       const quotes = await db.quote.findMany({ orderBy: { id: 'asc' } });
       const quote = quotes.length
@@ -917,14 +916,12 @@ export function createApp(
         req.userId!,
         reply.parts.length
           ? reply.parts
-          : input.text.toLowerCase().includes('mood')
-            ? [{ type: 'mood_picker' }]
-            : [
-                {
-                  type: 'quick_replies',
-                  options: ['I feel low', 'I feel okay', 'I want to reflect'],
-                },
-              ],
+          : [
+              {
+                type: 'quick_replies',
+                options: ['I feel low', 'I feel okay', 'I want to reflect'],
+              },
+            ],
       );
       const assistantMessage = await db.message.create({
         data: {
@@ -985,7 +982,7 @@ export function createApp(
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
       });
-      for (const chunk of reply.text.match(/.{1,24}(?:\s|$)/g) ?? [reply.text])
+      for (const chunk of reply.text.match(/[\s\S]{1,24}/gu) ?? [])
         res.write(`event: delta\ndata: ${JSON.stringify({ text: chunk })}\n\n`);
       res.write(`event: parts\ndata: ${JSON.stringify({ parts })}\n\n`);
       res.write(
@@ -999,14 +996,35 @@ export function createApp(
   app.post('/mood', requireAuth(config), async (req, res, next) => {
     try {
       const input = moodRequest.parse(req.body);
-      const mood = await db.moodEntry.create({
-        data: {
-          userId: req.userId!,
-          score: input.score,
-          note: input.note ?? null,
-          provenance: 'explicit',
-        },
-      });
+      const userId = req.userId!;
+      let id: string | undefined;
+      if (input.checkInId) {
+        // Derive a user-scoped UUID so retries reuse the same mood entry.
+        const hash = createHash('sha256')
+          .update(userId + ':' + input.checkInId)
+          .digest('hex');
+        id = [
+          hash.slice(0, 8),
+          hash.slice(8, 12),
+          '8' + hash.slice(13, 16),
+          '8' + hash.slice(17, 20),
+          hash.slice(20, 32),
+        ].join('-');
+      }
+      const mood = await db.moodEntry
+        .create({
+          data: {
+            id,
+            userId,
+            score: input.score,
+            note: input.note ?? null,
+            provenance: 'explicit',
+          },
+        })
+        .catch((error: { code?: string }) => {
+          if (!id || error.code !== 'P2002') throw error;
+          return db.moodEntry.findFirstOrThrow({ where: { id, userId } });
+        });
       const day = await userDateKey(req.userId!);
       const event = await db.xpEvent
         .create({

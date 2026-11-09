@@ -1,4 +1,5 @@
 import type { Config } from './config.js';
+import { isMoodCheckInRequest } from '@solace/contracts';
 
 export interface CompanionReply {
   text: string;
@@ -36,6 +37,11 @@ export async function generateCompanionReply(
           ],
         },
       ],
+    };
+  if (isMoodCheckInRequest(text))
+    return {
+      text: 'Let’s check in. Which of these feels closest right now?',
+      parts: [{ type: 'mood_picker' }],
     };
   if (!config.GEMINI_API_KEY) return localFallback();
   try {

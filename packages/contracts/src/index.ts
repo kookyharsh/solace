@@ -1,5 +1,23 @@
 import { z } from 'zod';
 
+export function isMoodCheckInRequest(text: string) {
+  const request = text
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?]+$/, '')
+    .trim()
+    .replace(/’/g, "'")
+    .replace(/\s+/g, ' ')
+    .replace(
+      /^(please|can i|can we|can you|could i|could you|i want to|i'd like to|i would like to) /,
+      '',
+    )
+    .replace(/,? please$/, '');
+  return /^(?:(?:log|record|track) (?:my |a |the )?mood|check in on (?:my )?mood|(?:do )?(?:a )?mood check[ -]in)$/.test(
+    request,
+  );
+}
+
 export const googleAuthRequest = z.object({ idToken: z.string().min(20).max(8192) });
 export const guestMergeRequest = googleAuthRequest;
 export const refreshRequest = z.object({ refreshToken: z.string().min(32).max(4096) });
@@ -30,6 +48,7 @@ export const journalEntryRequest = z.object({ text: z.string().trim().min(1).max
 export const moodRequest = z.object({
   score: z.number().int().min(1).max(5),
   note: z.string().trim().max(1000).optional(),
+  checkInId: z.string().trim().min(1).max(80).optional(),
 });
 export const xpEventRequest = z.object({
   type: z.string().trim().min(1).max(80),
