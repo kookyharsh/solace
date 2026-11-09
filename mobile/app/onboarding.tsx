@@ -1,12 +1,19 @@
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Button } from 'heroui-native/button';
 import { Input } from 'heroui-native/input';
-import { Switch } from 'heroui-native/switch';
 import { CompanionBlob } from '../src/companion/CompanionBlob';
 import { reactionForMood, type CompanionState } from '../src/companion/companionStates';
 import {
@@ -130,7 +137,9 @@ export default function Onboarding() {
   else if (previousQuestion === 'mood') avatarState = reactionForMood(answers.mood);
   else if (phase === 'acknowledgement') {
     avatarState =
-      previousQuestion === 'companionName' || previousQuestion === 'nickname' ? 'happy' : 'speaking';
+      previousQuestion === 'companionName' || previousQuestion === 'nickname'
+        ? 'happy'
+        : 'speaking';
   }
 
   useEffect(() => {
@@ -421,10 +430,14 @@ export default function Onboarding() {
               </Text>
               <Switch
                 accessibilityLabel={label}
-                isSelected={allowed}
-                onSelectedChange={(value) =>
+                value={allowed}
+                onValueChange={(value) =>
                   setAnswers((current) => ({ ...current, [question]: value }))
                 }
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={allowed ? '#FFFFFF' : colors.surface}
+                ios_backgroundColor={colors.border}
+                style={{ transform: [{ scaleX: 1.08 }, { scaleY: 1.08 }] }}
               />
             </View>
             <Button
@@ -535,11 +548,7 @@ export default function Onboarding() {
           >
             <View style={{ paddingHorizontal: 20, paddingBottom: 12, gap: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <CompanionBlob
-                  size={54}
-                  state={avatarState}
-                  moodScore={answers.mood}
-                />
+                <CompanionBlob size={54} state={avatarState} moodScore={answers.mood} />
                 <View style={{ flex: 1 }}>
                   <Text
                     style={{

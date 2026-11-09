@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, GradientBackground } from '../src/components/ui';
 import { useTheme, useThemeMode } from '../src/theme';
+import { googleSignInConfigured, useGoogleSignIn } from '../src/googleAuth';
 import {
   requestNotifications,
   scheduleCustomReminder,
@@ -116,6 +117,22 @@ export default function Settings() {
   const [reminderTime, setReminderTime] = useState('20:00');
   const [memoryConsent, setMemoryConsent] = useState(false);
   const [notificationConsent, setNotificationConsent] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+
+  const beginGoogleLink = useCallback(() => {
+    if (googleBusy) return false;
+    setGoogleBusy(true);
+    return true;
+  }, [googleBusy]);
+  const completeGoogleLink = useCallback(() => {
+    setGoogleBusy(false);
+    Alert.alert('Google connected', 'Your guest account is now connected to Google.');
+  }, []);
+  const failGoogleLink = useCallback(() => {
+    setGoogleBusy(false);
+    Alert.alert('Google connection failed', 'Please try again or check your connection.');
+  }, []);
+  const google = useGoogleSignIn(beginGoogleLink, completeGoogleLink, failGoogleLink);
 
   useEffect(() => {
     AsyncStorage.getItem('solace.profile').then((raw) => {
@@ -497,6 +514,18 @@ export default function Settings() {
                 Solace is a companion, not a replacement for professional care. If you may be in
                 danger, contact local emergency services or a trusted person.
               </Text>
+              {googleSignInConfigured ? (
+                <Button
+                  label={googleBusy ? 'Connecting Google…' : 'Connect Google account'}
+                  variant="outline"
+                  disabled={googleBusy || !google.ready}
+                  onPress={() => void google.signIn().catch(failGoogleLink)}
+                />
+              ) : (
+                <Text style={{ color: t.colors.muted }}>
+                  Google connection is unavailable in this build.
+                </Text>
+              )}
               <Button
                 label="Export my data"
                 variant="outline"

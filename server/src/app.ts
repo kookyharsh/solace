@@ -81,7 +81,11 @@ export function createApp(
       });
     const lower = text.toLowerCase();
     const parts = [...replyParts];
-    if (!parts.some((part) => part.type === 'mood_picker') && /mood|week|feeling/.test(lower)) {
+    const asksForMoodHistory =
+      /\b(?:mood (?:this|last) week|my moods? (?:this|last) week|show (?:me )?(?:my )?moods?|mood history|weekly mood)\b/.test(
+        lower,
+      );
+    if (!parts.some((part) => part.type === 'mood_picker') && asksForMoodHistory) {
       const entries = await db.moodEntry.findMany({
         where: { userId, createdAt: { gte: new Date(Date.now() - 7 * 86400000) }, deletedAt: null },
         orderBy: { createdAt: 'asc' },

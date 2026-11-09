@@ -22,6 +22,7 @@ export function CompanionBlob({
   moodScore,
   color,
   frozenAt = 0,
+  lookAtComposer = false,
 }: {
   size?: number;
   state?: CompanionState;
@@ -29,9 +30,13 @@ export function CompanionBlob({
   moodScore?: number;
   color?: string;
   frozenAt?: number;
+  lookAtComposer?: boolean;
 }) {
   const preset = companionStates[state] ?? companionStates.idle;
-  const face = EXPRESSION_BY_ID.get(expression ?? '') ?? EXPRESSION_BY_ID.get(preset.face) ?? null;
+  const face =
+    EXPRESSION_BY_ID.get(expression ?? (lookAtComposer ? 'typing' : '')) ??
+    EXPRESSION_BY_ID.get(preset.face) ??
+    null;
   const [startedAt] = useState(() => performance.now());
   const [engine] = useState(() => new BotEngine(100, preset.pose, body, face));
   const [frame, setFrame] = useState(() => engine.sample(frozenAt));

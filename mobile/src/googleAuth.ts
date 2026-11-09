@@ -5,9 +5,12 @@ import * as Google from 'expo-auth-session/providers/google';
 import { mergeGuestWithGoogle } from './api';
 
 WebBrowser.maybeCompleteAuthSession();
-const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
 const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-export const googleSignInConfigured = Boolean(Platform.OS === 'ios' ? iosClientId : googleClientId);
+const currentClientId =
+  Platform.OS === 'android' ? androidClientId : Platform.OS === 'ios' ? iosClientId : webClientId;
+export const googleSignInConfigured = Boolean(currentClientId);
 
 export function useGoogleSignIn(
   onMergeStart: () => boolean,
@@ -15,8 +18,8 @@ export function useGoogleSignIn(
   onFailure: () => void,
 ) {
   const [request, response, promptAsync] = Google.useAuthRequest({
-    webClientId: googleClientId,
-    androidClientId: googleClientId,
+    webClientId,
+    androidClientId,
     iosClientId,
   });
   useEffect(() => {
