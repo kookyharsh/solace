@@ -3,7 +3,7 @@ import { ActivityIndicator, FlatList, Pressable, Text } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { deleteConversation, getConversations } from '../src/api';
-import { Card, GradientBackground } from '../src/components/ui';
+import { Card, ScreenBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
 
 export default function History() {
@@ -19,7 +19,7 @@ export default function History() {
       .finally(() => setLoading(false));
   }, []);
   return (
-    <GradientBackground>
+    <ScreenBackground>
       <SafeAreaView style={{ flex: 1, padding: t.spacing.lg, gap: t.spacing.lg }}>
         <Text
           style={{
@@ -82,6 +82,6 @@ export default function History() {
           <Text style={{ color: t.colors.primary, textAlign: 'center' }}>Back to chat</Text>
         </Pressable>
       </SafeAreaView>
-    </GradientBackground>
+    </ScreenBackground>
   );
 }

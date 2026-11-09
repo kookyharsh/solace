@@ -1,12 +1,11 @@
 import 'react-native-gesture-handler';
 import '../global.css';
-import { HeroUINativeProvider } from 'heroui-native/provider';
 import { Stack, router } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts as useInter, Inter_400Regular } from '@expo-google-fonts/inter';
 import { useFonts as useNunito, Nunito_700Bold } from '@expo-google-fonts/nunito';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { configureNotificationCategories } from '../src/notifications';
@@ -37,6 +36,7 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
+    if (Platform.OS === 'web') return;
     void configureNotificationCategories();
     const handled = new Set<string>();
     const handle = async (response: Notifications.NotificationResponse) => {
@@ -72,19 +72,15 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <HeroUINativeProvider>
         <ThemeProvider>
           <SafeAreaProvider>
             <Stack
               screenOptions={{
                 headerShown: false,
-                animation: 'fade',
-                animationDuration: 280,
               }}
             />
           </SafeAreaProvider>
         </ThemeProvider>
-      </HeroUINativeProvider>
     </GestureHandlerRootView>
   );
 }

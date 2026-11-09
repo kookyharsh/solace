@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CompanionBlob } from '../../src/companion/CompanionBlob';
-import { Button, Card, Chip, GradientBackground, ProgressBar } from '../../src/components/ui';
+import { Button, Card, Chip, ScreenBackground, ProgressBar } from '../../src/components/ui';
 import { MoodChoices } from '../../src/components/MoodChoices';
 import { useTheme } from '../../src/theme';
+import { colorForMood } from '../../src/companion/moodTheme';
 import {
   completeDailyChallenge,
   getAchievements,
@@ -49,11 +50,11 @@ export default function Wellness() {
   const toggle = (key: string) =>
     setCompleted((current) => (current.includes(key) ? current : [...current, key]));
   return (
-    <GradientBackground>
+    <ScreenBackground>
       <SafeAreaView style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ padding: t.spacing.lg, gap: t.spacing.lg }}>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}>
           <View
-            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.colors.divider }}
           >
             <View>
               <Text style={{ color: t.colors.muted, fontSize: t.typography.body }}>
@@ -71,22 +72,23 @@ export default function Wellness() {
             </View>
             <CompanionBlob size={72} state="proud" moodScore={mood} frozenAt={1} />
           </View>
-          <Card style={{ gap: t.spacing.md }}>
+          <Card style={{ gap: 12 }}>
+            <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold', fontSize: 18 }}>Level & XP</Text>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text
                 style={{
                   color: t.colors.ink,
                   fontFamily: 'Nunito_700Bold',
-                  fontSize: t.typography.title,
+                  fontSize: 16,
                 }}
               >
                 Level {stats.level}
               </Text>
-              <Text style={{ color: t.colors.primary }}>{stats.xp} XP</Text>
+              <Text style={{ color: t.colors.muted, fontSize: 13 }}>{stats.xpIntoLevel} / {stats.xpForNext} XP</Text>
             </View>
             <ProgressBar value={(stats.xpIntoLevel / stats.xpForNext) * 100} />
           </Card>
-          <Card style={{ gap: t.spacing.md }}>
+          <Card style={{ gap: 12 }}>
             <Text
               style={{
                 color: t.colors.ink,
@@ -106,7 +108,7 @@ export default function Wellness() {
                         minHeight: 8,
                         height: Math.max(8, entry.score * 12),
                         borderRadius: 8,
-                        backgroundColor: t.colors.primary,
+                        backgroundColor: colorForMood(entry.score),
                       }}
                     />
                     <Text style={{ color: t.colors.muted, fontSize: 11 }}>{entry.score}</Text>
@@ -117,7 +119,7 @@ export default function Wellness() {
               <Text style={{ color: t.colors.muted }}>Log a mood to see your weekly pattern.</Text>
             )}
           </Card>
-          <Card style={{ gap: t.spacing.md }}>
+          <Card style={{ gap: 12 }}>
             <Text
               style={{
                 color: t.colors.ink,
@@ -133,20 +135,20 @@ export default function Wellness() {
                 : 'Your first rewards will appear here.'}
             </Text>
           </Card>
-          <Card style={{ gap: t.spacing.md }}>
-            <Text style={{ color: t.colors.muted }}>Today’s note</Text>
+          <Card style={{ gap: 12 }}>
+            <Text style={{ color: t.colors.ink, fontSize: 18, fontFamily: 'Nunito_700Bold' }}>Today’s note</Text>
             <Text
               style={{
                 color: t.colors.ink,
-                fontSize: t.typography.title,
-                fontFamily: 'Nunito_700Bold',
+                fontSize: 20,
+                fontWeight: '600',
               }}
             >
               {quote?.text ?? 'You do not have to solve the whole day at once.'}
             </Text>
-            <Text style={{ color: t.colors.muted }}>— {quote?.author ?? 'Solace'}</Text>
+            <Text style={{ color: t.colors.muted, fontSize: 13 }}>— {quote?.author ?? 'Solace'}</Text>
           </Card>
-          <Card style={{ gap: t.spacing.md }}>
+          <Card style={{ gap: 12 }}>
             <Text
               style={{
                 color: t.colors.ink,
@@ -166,7 +168,7 @@ export default function Wellness() {
               }}
             />
           </Card>
-          <Card style={{ gap: t.spacing.md }}>
+          <Card style={{ gap: 12 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text
                 style={{
@@ -177,7 +179,7 @@ export default function Wellness() {
               >
                 Daily care
               </Text>
-              <Text style={{ color: t.colors.primary, fontFamily: 'Nunito_700Bold' }}>+30 XP</Text>
+              <Text style={{ color: t.colors.muted, fontFamily: 'Nunito_700Bold' }}>+30 XP</Text>
             </View>
             <Text style={{ color: t.colors.muted }}>
               Small moments count. Pick one that feels possible.
@@ -202,7 +204,7 @@ export default function Wellness() {
             ))}
             <ProgressBar value={(completed.length / 3) * 100} />
           </Card>
-          <Card style={{ gap: t.spacing.md }}>
+          <Card style={{ gap: 12 }}>
             <Text
               style={{
                 color: t.colors.ink,
@@ -222,6 +224,6 @@ export default function Wellness() {
           </Card>
         </ScrollView>
       </SafeAreaView>
-    </GradientBackground>
+    </ScreenBackground>
   );
 }

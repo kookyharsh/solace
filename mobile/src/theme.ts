@@ -10,58 +10,24 @@ import {
 import { useColorScheme } from 'react-native';
 import { Uniwind } from 'uniwind';
 
-export const palette = {
-  lavender: '#A78BFA',
-  lilac: '#E9D5FF',
-  peach: '#FDBA9B',
-  plum: '#352A45',
+export const colors = {
+  light: { bg: '#FFFFFF', text: '#17171A', muted: '#6B6B76', divider: '#E7E7EC', input: '#F6F6F8', userBubble: '#F2F2F5', accent: '#7C5CFA', onAccent: '#FFFFFF' },
+  dark: { bg: '#101012', text: '#F2F2F5', muted: '#9A9AA5', divider: '#26262B', input: '#1A1A1E', userBubble: '#26262B', accent: '#9D86FF', onAccent: '#101012' },
 } as const;
 
 const shared = {
-  spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 },
-  radii: { sm: 12, md: 18, lg: 24, pill: 999 },
-  typography: { display: 34, title: 24, body: 16, caption: 14 },
-  shadows: {
-    card: {
-      elevation: 3,
-      shadowOpacity: 0.08,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 4 },
-    },
-  },
+  spacing: { xs: 4, sm: 8, md: 16, lg: 20, xl: 32, xxl: 48 },
+  radii: { sm: 12, md: 12, lg: 16, pill: 999 },
+  typography: { display: 28, title: 18, body: 16, caption: 13 },
 } as const;
 export const themes = {
   light: {
     ...shared,
-    colors: {
-      background: '#FFF9FC',
-      surface: '#FFFFFF',
-      ink: palette.plum,
-      muted: '#74677E',
-      primary: '#7656C9',
-      onPrimary: '#FFFFFF',
-      secondary: palette.peach,
-      accent: palette.lilac,
-      warning: '#F7C873',
-      border: '#E9DFF0',
-      wash: '#F4ECFF',
-    },
+    colors: { ...colors.light, background: colors.light.bg, surface: colors.light.bg, ink: colors.light.text, primary: colors.light.accent, onPrimary: colors.light.onAccent, secondary: colors.light.divider, border: colors.light.divider, wash: colors.light.bg, warning: colors.light.muted },
   },
   dark: {
     ...shared,
-    colors: {
-      background: '#211B2B',
-      surface: '#30253D',
-      ink: '#FFF7FF',
-      muted: '#D6C7E1',
-      primary: '#C4B5FD',
-      onPrimary: '#30253D',
-      secondary: '#F7A987',
-      accent: '#4D3A63',
-      warning: '#F7C873',
-      border: '#4A3B59',
-      wash: '#3B2E4A',
-    },
+    colors: { ...colors.dark, background: colors.dark.bg, surface: colors.dark.bg, ink: colors.dark.text, primary: colors.dark.accent, onPrimary: colors.dark.onAccent, secondary: colors.dark.divider, border: colors.dark.divider, wash: colors.dark.bg, warning: colors.dark.muted },
   },
 };
 export type ThemeMode = 'system' | 'light' | 'dark';

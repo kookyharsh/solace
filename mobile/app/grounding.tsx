@@ -1,14 +1,14 @@
 import { ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, GradientBackground } from '../src/components/ui';
+import { Button, ScreenBackground } from '../src/components/ui';
 import { GroundingExercise } from '../src/components/wellness-exercises';
 import { useTheme } from '../src/theme';
 
 export default function Grounding() {
   const t = useTheme();
   return (
-    <GradientBackground>
+    <ScreenBackground>
       <SafeAreaView style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: t.spacing.lg }}
@@ -19,6 +19,6 @@ export default function Grounding() {
           </View>
         </ScrollView>
       </SafeAreaView>
-    </GradientBackground>
+    </ScreenBackground>
   );
 }

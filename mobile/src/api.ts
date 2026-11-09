@@ -4,6 +4,7 @@ import { offlineRepository, type QueuedMood } from './offline/repository';
 
 const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:4000';
 const pendingSetupKey = 'solace.onboarding.pending';
+const localHabitsKey = 'solace.habits';
 let accountVersion = 0;
 let changingAccount = false;
 let guestSession: Promise<boolean> | undefined;
@@ -137,7 +138,9 @@ export async function signOut() {
       'solace.onboarding',
       'solace.profile',
       'solace.local_reminders',
+      localHabitsKey,
       'solace.queuedChat',
+      localHabitsKey,
       pendingSetupKey,
     ]);
   } finally {
@@ -447,6 +450,7 @@ export function saveOnboardingSetup(
   return withSetupWrite(() =>
     AsyncStorage.multiSet([
       ['solace.profile', JSON.stringify({ ...remoteProfile, mood })],
+      [localHabitsKey, JSON.stringify(habits)],
       [pendingSetupKey, JSON.stringify({ profile: remoteProfile, habits, welcomeXp: true })],
     ]),
   );
@@ -530,6 +534,8 @@ export function updateProfile(profile: ProfileUpdate) {
 export function updateHabitPreference(key: string, enabled: boolean) {
   const version = accountVersion;
   return withSetupWrite(async () => {
+    const existing = await AsyncStorage.getItem(localHabitsKey);
+    await AsyncStorage.setItem(localHabitsKey, JSON.stringify({ ...(existing ? JSON.parse(existing) : {}), [key]: enabled }));
     await ensureGuestSession();
     const result = await patchHabit(key, enabled);
     const setup = await readPendingSetup();
@@ -541,8 +547,20 @@ export function updateHabitPreference(key: string, enabled: boolean) {
   });
 }
 export async function getHabitPreferences() {
-  await ensureGuestSession();
-  return request<Array<{ key: string; enabled: boolean }>>('/habits');
+  const localRaw = await AsyncStorage.getItem(localHabitsKey);
+  const local = localRaw ? JSON.parse(localRaw) as Record<string, boolean> : {};
+  const pending = (await readPendingSetup())?.habits ?? {};
+  try {
+    await ensureGuestSession();
+    const remote = await request<Array<{ key: string; enabled: boolean }>>('/habits');
+    return Array.from(new Map([
+      ...Object.entries(local).map(([key, enabled]) => ({ key, enabled })),
+      ...remote,
+      ...Object.entries(pending).map(([key, enabled]) => ({ key, enabled })),
+    ].map(item => [item.key, item])).values());
+  } catch {
+    return Object.entries(local).map(([key, enabled]) => ({ key, enabled }));
+  }
 }
 export async function getProfile() {
   await ensureGuestSession();

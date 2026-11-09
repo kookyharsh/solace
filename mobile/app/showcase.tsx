@@ -6,7 +6,7 @@ import {
   Button,
   Card,
   Chip,
-  GradientBackground,
+  ScreenBackground,
   IconButton,
   ProgressBar,
   Sheet,
@@ -20,7 +20,7 @@ export default function Showcase() {
   const [sheet, setSheet] = useState(false);
   const [toast, setToast] = useState(false);
   return (
-    <GradientBackground>
+    <ScreenBackground>
       <SafeAreaView style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ padding: t.spacing.lg, gap: t.spacing.md }}>
           <Text
@@ -60,6 +60,6 @@ export default function Showcase() {
         </Sheet>
         <Toast visible={toast} message="A little moment of calm" />
       </SafeAreaView>
-    </GradientBackground>
+    </ScreenBackground>
   );
 }

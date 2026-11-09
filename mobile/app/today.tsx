@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Card, GradientBackground } from '../src/components/ui';
+import { Card, ScreenBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
 import { getTodayJournal } from '../src/api';
 
@@ -14,7 +14,7 @@ export default function Today() {
       .catch(() => setData({ messages: [], summary: null }));
   }, []);
   return (
-    <GradientBackground>
+    <ScreenBackground>
       <SafeAreaView style={{ flex: 1, padding: t.spacing.lg }}>
         <Text
           style={{
@@ -64,6 +64,6 @@ export default function Today() {
           />
         )}
       </SafeAreaView>
-    </GradientBackground>
+    </ScreenBackground>
   );
 }

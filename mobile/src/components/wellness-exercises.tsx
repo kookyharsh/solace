@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
+import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { Button, Card, ProgressBar } from './ui';
+import { useConversationReduceMotion } from './conversation';
+import { CompanionBlob } from '../companion/CompanionBlob';
 import { useTheme } from '../theme';
 import { awardXp, completeDailyChallenge, logMood, saveJournalEntry } from '../api';
 import { MoodChoices } from './MoodChoices';
@@ -29,6 +32,29 @@ export function BreathingExercise({ onDone }: { onDone?: () => void }) {
   const [saveAttempt, setSaveAttempt] = useState(0);
   const [mood, setMood] = useState<number>();
   const completionKey = useRef(`breathing-${new Date().toISOString()}`);
+  const secondsRef = useRef(seconds);
+  secondsRef.current = seconds;
+  const reduceMotion = useConversationReduceMotion();
+  const breathScale = useSharedValue(0.88);
+  const breathStyle = useAnimatedStyle(() => ({ transform: [{ scale: breathScale.get() }] }));
+
+  useEffect(() => {
+    cancelAnimation(breathScale);
+    if (reduceMotion === true || completed) {
+      breathScale.set(1);
+      return;
+    }
+    if (!running || reduceMotion !== false) return;
+    const elapsed = (breathingDurationSeconds - secondsRef.current) % 10;
+    const ease = Easing.bezier(0.77, 0, 0.175, 1);
+    const inhale = () => withTiming(1.08, { duration: 4000, easing: ease });
+    const exhale = () => withTiming(0.88, { duration: 6000, easing: ease });
+    const cycle = withRepeat(withSequence(inhale(), exhale()), -1, false);
+    breathScale.set(elapsed < 4
+      ? withSequence(withTiming(1.08, { duration: (4 - elapsed) * 1000, easing: ease }), exhale(), cycle)
+      : withSequence(withTiming(0.88, { duration: (10 - elapsed) * 1000, easing: ease }), cycle));
+    return () => cancelAnimation(breathScale);
+  }, [breathScale, completed, reduceMotion, running]);
 
   useEffect(() => {
     if (!running) return;
@@ -71,22 +97,16 @@ export function BreathingExercise({ onDone }: { onDone?: () => void }) {
   const phase = seconds % 10 < 4 ? 'Breathe in' : 'Breathe out';
   return (
     <ExerciseShell>
-      <Text style={{ color: t.colors.primary, fontFamily: 'Nunito_700Bold' }}>
+      <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>
         One-minute breathing
       </Text>
       <View
         accessibilityLabel={completed ? 'Breathing complete' : phase}
         style={{ alignItems: 'center', justifyContent: 'center', height: 112 }}
       >
-        <View
-          style={{
-            width: running ? 96 : 78,
-            height: running ? 96 : 78,
-            borderRadius: 999,
-            backgroundColor: t.colors.primary,
-            opacity: 0.8,
-          }}
-        />
+        <Animated.View style={breathStyle}>
+          <CompanionBlob size={96} state="idle" />
+        </Animated.View>
       </View>
       <Text style={{ color: t.colors.ink, textAlign: 'center', fontFamily: 'Nunito_700Bold' }}>
         {completed ? 'You made space to breathe.' : `${phase} · ${seconds}s`}
@@ -149,7 +169,7 @@ export function GroundingExercise({ onDone }: { onDone?: () => void }) {
   };
   return (
     <ExerciseShell>
-      <Text style={{ color: t.colors.primary, fontFamily: 'Nunito_700Bold' }}>
+      <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>
         5-4-3-2-1 grounding
       </Text>
       <Text
@@ -221,7 +241,7 @@ export function GratitudeExercise({ onDone }: { onDone?: () => void }) {
   };
   return (
     <ExerciseShell>
-      <Text style={{ color: t.colors.primary, fontFamily: 'Nunito_700Bold' }}>One good thing</Text>
+      <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>One good thing</Text>
       <Text style={{ color: t.colors.muted }}>
         It can be tiny: a warm drink, a message, or a quiet minute.
       </Text>
@@ -237,8 +257,7 @@ export function GratitudeExercise({ onDone }: { onDone?: () => void }) {
           minHeight: 88,
           padding: t.spacing.sm,
           borderRadius: t.radii.md,
-          borderWidth: 1,
-          borderColor: t.colors.border,
+          backgroundColor: t.colors.input,
           color: t.colors.ink,
           textAlignVertical: 'top',
         }}
@@ -249,7 +268,7 @@ export function GratitudeExercise({ onDone }: { onDone?: () => void }) {
         onPress={() => void save()}
       />
       {error && (
-        <Text accessibilityRole="alert" style={{ color: t.colors.primary }}>
+        <Text accessibilityRole="alert" style={{ color: t.colors.ink }}>
           I couldn’t save that yet. Your note is still here—try again.
         </Text>
       )}

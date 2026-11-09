@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
+import { View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { BotEngine } from './engine/engine';
 import { EXPRESSION_BY_ID } from './engine/expressions';
@@ -42,8 +37,6 @@ export function CompanionBlob({
   const [frame, setFrame] = useState(() => engine.sample(frozenAt));
   const [reduceMotion, setReduceMotion] = useState<boolean>();
   const moving = reduceMotion === false && frozenAt === 0;
-  const bounce = useSharedValue(0);
-  const bodyMotion = useAnimatedStyle(() => ({ transform: [{ translateY: bounce.value }] }));
 
   useEffect(() => {
     if (!moving) {
@@ -82,24 +75,12 @@ export function CompanionBlob({
     return () => clearInterval(timer);
   }, [engine, moving, startedAt]);
 
-  useEffect(() => {
-    bounce.value = 0;
-    if (!moving) return;
-    const offset =
-      state === 'proud' || state === 'happy' ? -size * 0.08 : state === 'caring' ? size * 0.04 : 0;
-    if (offset)
-      bounce.value = withSequence(
-        withTiming(offset, { duration: 180 }),
-        withTiming(0, { duration: 280 }),
-      );
-  }, [bounce, moving, size, state]);
-
   const fill = color ?? colorForMood(moodScore);
   return (
-    <Animated.View
+    <View
       accessible
       accessibilityLabel={preset.label}
-      style={[{ width: size, height: size }, bodyMotion]}
+      style={{ width: size, height: size }}
     >
       <Svg width={size} height={size} viewBox="-120 -120 240 240">
         {frame.dots
@@ -141,6 +122,6 @@ export function CompanionBlob({
           />
         ))}
       </Svg>
-    </Animated.View>
+    </View>
   );
 }

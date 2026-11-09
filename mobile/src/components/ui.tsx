@@ -4,11 +4,11 @@ import {
   Animated,
   Modal,
   Pressable,
+  StyleSheet,
   Text,
   View,
   type ViewProps,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { haptics } from '../haptics';
 import { useTheme } from '../theme';
@@ -27,17 +27,9 @@ export function Button({
   variant?: 'primary' | 'secondary' | 'outline' | 'destructive';
 }) {
   const t = useTheme();
-  const isOutline = variant === 'outline';
   const isDestructive = variant === 'destructive';
-  const backgroundColor =
-    variant === 'primary'
-      ? t.colors.primary
-      : variant === 'secondary'
-        ? t.colors.accent
-        : isDestructive
-          ? '#B94B62'
-          : 'transparent';
-  const color = isOutline ? t.colors.primary : isDestructive ? '#FFFFFF' : t.colors.onPrimary;
+  const backgroundColor = disabled ? t.colors.input : variant === 'primary' ? t.colors.primary : 'transparent';
+  const color = disabled ? t.colors.muted : variant === 'primary' ? t.colors.onPrimary : isDestructive ? t.colors.ink : t.colors.primary;
   return (
     <AnimatedPressable
       accessibilityRole="button"
@@ -47,11 +39,12 @@ export function Button({
       noHaptics={false}
       style={{
         backgroundColor,
-        borderRadius: t.radii.pill,
-        padding: t.spacing.md,
+        borderRadius: 12,
+        height: 48,
+        justifyContent: 'center',
+        paddingHorizontal: t.spacing.md,
         alignItems: 'center',
-        borderWidth: isOutline ? 1 : 0,
-        borderColor: t.colors.border,
+        borderWidth: 0,
       }}
     >
       <Text
@@ -84,14 +77,16 @@ export function Chip({
       pressedScale={0.94}
       style={{
         borderRadius: t.radii.pill,
-        backgroundColor: selected ? t.colors.primary : t.colors.surface,
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: selected ? t.colors.primary : t.colors.divider,
         paddingHorizontal: t.spacing.md,
         paddingVertical: t.spacing.sm,
       }}
     >
       <Text
         style={{
-          color: selected ? t.colors.onPrimary : t.colors.ink,
+          color: selected ? t.colors.primary : t.colors.ink,
           fontFamily: 'Inter_400Regular',
         }}
       >
@@ -107,12 +102,9 @@ export function Card({ children, ...props }: ViewProps) {
       {...props}
       style={[
         {
-          backgroundColor: t.colors.surface,
-          borderRadius: t.radii.lg,
-          padding: t.spacing.lg,
-          borderWidth: 1,
-          borderColor: t.colors.border,
-          ...t.shadows.card,
+          paddingVertical: 20,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: t.colors.divider,
         },
         props.style,
       ]}
@@ -121,12 +113,12 @@ export function Card({ children, ...props }: ViewProps) {
     </View>
   );
 }
-export function GradientBackground({ children }: { children: React.ReactNode }) {
+export function ScreenBackground({ children }: { children: React.ReactNode }) {
   const t = useTheme();
   return (
-    <LinearGradient colors={[t.colors.background, t.colors.secondary + '35']} style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
       {children}
-    </LinearGradient>
+    </View>
   );
 }
 export function Avatar({ size = 64 }: { size?: number }) {
@@ -143,7 +135,7 @@ export function Sheet({
 }) {
   const t = useTheme();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Close sheet"
@@ -184,15 +176,15 @@ export function Toast({ message, visible }: { message: string; visible: boolean 
     </View>
   );
 }
-export function ProgressBar({ value }: { value: number }) {
+export function ProgressBar({ value, height = 4 }: { value: number; height?: number }) {
   const t = useTheme();
   return (
     <View
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.max(0, Math.min(100, value)) }}
       style={{
-        height: t.spacing.sm,
-        backgroundColor: t.colors.background,
+        height,
+        backgroundColor: t.colors.divider,
         borderRadius: t.radii.pill,
         overflow: 'hidden',
       }}

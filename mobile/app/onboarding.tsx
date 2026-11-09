@@ -11,15 +11,14 @@ import {
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import { Button } from 'heroui-native/button';
-import { Input } from 'heroui-native/input';
 import { CompanionBlob } from '../src/companion/CompanionBlob';
 import { reactionForMood, type CompanionState } from '../src/companion/companionStates';
 import {
   ConversationBackground,
   ConversationBubble,
   ConversationIconButton,
+  FlatButton as Button,
+  FlatInput as Input,
   ThinkingBubble,
   useConversationReduceMotion,
 } from '../src/components/conversation';
@@ -29,7 +28,8 @@ import { useTheme } from '../src/theme';
 import { googleSignInConfigured, useGoogleSignIn } from '../src/googleAuth';
 import { saveOnboardingSetup, syncOnboardingSetup } from '../src/api';
 import { requestNotifications } from '../src/notifications';
-import { ClockTimePicker, format12Hour } from '../src/components/ClockTimePicker';
+import { format12Hour } from '../src/components/ClockTimePicker';
+import { NativeTimePicker } from '../src/components/NativeTimePicker';
 
 const goals = ['Stress', 'Sleep', 'Focus', 'Loneliness', 'Building habits'];
 const habits = {
@@ -83,7 +83,7 @@ const defaults: Answers = {
   goals: [],
   habits: [],
   wakeTime: '08:00',
-  sleepTime: '22:00',
+  sleepTime: '23:00',
   memoryConsent: false,
   notificationConsent: false,
 };
@@ -366,7 +366,7 @@ export default function Onboarding() {
                   selected,
                   selected.length ? selected.map(label).join(', ') : 'Nothing for now',
                   selected.length
-                    ? 'We can start there and see what feels right.'
+                    ? question === 'goals' ? 'I’ll keep those in mind as we talk.' : 'I’ll remember those for your check-ins.'
                     : 'Sure. We can come back to this anytime.',
                 )
               }
@@ -379,16 +379,15 @@ export default function Onboarding() {
       case 'wakeTime':
       case 'sleepTime':
         return (
-          <View style={{ gap: 12, width: '100%', alignItems: 'center' }}>
-            <ClockTimePicker
+          <View style={{ gap: 12, width: '100%' }}>
+            <NativeTimePicker
               value={answers[question] || defaults[question]}
-              onChange={(value) => {
-                setError('');
-                setAnswers((current) => ({ ...current, [question]: value }));
-              }}
+              label={question === 'wakeTime' ? 'Wake time' : 'Sleep time'}
               onConfirm={(value) => submitTime(question, value)}
-              confirmLabel={`Confirm ${format12Hour(answers[question] || defaults[question])}`}
             />
+            <Button variant="outline" onPress={() => submitTime(question, defaults[question])}>
+              {`Use ${defaults[question]}`}
+            </Button>
           </View>
         );
       case 'memoryConsent':
@@ -416,7 +415,7 @@ export default function Onboarding() {
                   setAnswers((current) => ({ ...current, [question]: value }))
                 }
                 trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor={allowed ? '#FFFFFF' : colors.surface}
+                thumbColor={allowed ? colors.onAccent : colors.muted}
                 ios_backgroundColor={colors.border}
                 style={{ transform: [{ scaleX: 1.08 }, { scaleY: 1.08 }] }}
               />
@@ -472,8 +471,7 @@ export default function Onboarding() {
           <ScrollView
             contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
           >
-            <Animated.View
-              entering={animate ? FadeInDown.duration(400) : undefined}
+            <View
               style={{
                 width: '100%',
                 maxWidth: 440,
@@ -520,7 +518,7 @@ export default function Onboarding() {
               <Text style={{ color: colors.muted, textAlign: 'center' }}>
                 Solace is a companion, not a replacement for professional care.
               </Text>
-            </Animated.View>
+            </View>
           </ScrollView>
         ) : (
           <KeyboardAvoidingView
@@ -532,24 +530,14 @@ export default function Onboarding() {
                 <CompanionBlob size={54} state={avatarState} moodScore={answers.mood} />
                 <View style={{ flex: 1 }}>
                   <Text
-                    style={{
-                      color: colors.primary,
-                      fontFamily: 'Nunito_700Bold',
-                      fontSize: 12,
-                      letterSpacing: 1.6,
-                    }}
-                  >
-                    SOLACE / HELLO
-                  </Text>
-                  <Text
                     accessibilityRole="header"
-                    style={{ color: colors.ink, fontFamily: 'Nunito_700Bold', fontSize: 24 }}
+                    style={{ color: colors.ink, fontFamily: 'Nunito_700Bold', fontSize: 28 }}
                   >
-                    Getting to know you
+                    {answers.companionName || 'Solace'}
                   </Text>
                 </View>
               </View>
-              <ProgressBar value={(turns.length / questions.length) * 100} />
+              <ProgressBar value={(turns.length / questions.length) * 100} height={2} />
             </View>
             <ScrollView
               ref={transcript}
@@ -562,7 +550,7 @@ export default function Onboarding() {
                 gap: 9,
               }}
               keyboardShouldPersistTaps="handled"
-              onContentSizeChange={() => transcript.current?.scrollToEnd({ animated: animate })}
+              onContentSizeChange={() => transcript.current?.scrollToEnd({ animated: false })}
               onLayout={() => transcript.current?.scrollToEnd({ animated: false })}
             >
               <ConversationBubble text="Hey, I’m glad you’re here. I’m your Solace companion. Can we get to know each other a little?" />

@@ -5,6 +5,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Switch,
   Text,
   TextInput,
@@ -13,14 +14,13 @@ import {
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, GradientBackground } from '../src/components/ui';
+import { Button, Card, ScreenBackground } from '../src/components/ui';
 import { useTheme, useThemeMode } from '../src/theme';
 import { googleSignInConfigured, useGoogleSignIn } from '../src/googleAuth';
 import {
   ClockTimePickerModal,
   TimePickerButton,
   format12Hour,
-  openNativeTimePicker,
 } from '../src/components/ClockTimePicker';
 import {
   requestNotifications,
@@ -56,7 +56,7 @@ function SectionTitle({ children }: { children: string }) {
   const t = useTheme();
   return (
     <Text
-      style={{ color: t.colors.ink, fontSize: t.typography.title, fontFamily: 'Nunito_700Bold' }}
+      style={{ color: t.colors.ink, fontSize: 18, fontFamily: 'Nunito_700Bold' }}
     >
       {children}
     </Text>
@@ -97,8 +97,8 @@ function SettingSwitch({
         accessibilityHint={detail}
         value={value}
         onValueChange={onValueChange}
-        trackColor={{ false: t.colors.border, true: t.colors.primary }}
-        thumbColor={value ? '#FFFFFF' : t.colors.surface}
+        trackColor={{ false: t.colors.divider, true: t.colors.accent }}
+        thumbColor={value ? t.colors.onAccent : t.colors.muted}
         ios_backgroundColor={t.colors.border}
         style={{ transform: [{ scaleX: 1.08 }, { scaleY: 1.08 }] }}
       />
@@ -177,10 +177,8 @@ export default function Settings() {
 
   const inputStyle = {
     color: t.colors.ink,
-    backgroundColor: t.colors.background,
-    borderColor: t.colors.border,
-    borderWidth: 1,
-    borderRadius: t.radii.md,
+    backgroundColor: t.colors.input,
+    borderRadius: 12,
     padding: t.spacing.md,
   } as const;
 
@@ -306,7 +304,7 @@ export default function Settings() {
   };
 
   return (
-    <GradientBackground>
+    <ScreenBackground>
       <SafeAreaView style={{ flex: 1 }}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -318,12 +316,12 @@ export default function Settings() {
               width: '100%',
               maxWidth: 720,
               alignSelf: 'center',
-              padding: t.spacing.lg,
-              gap: t.spacing.lg,
+              paddingHorizontal: 20,
+              paddingTop: 20,
               paddingBottom: t.spacing.xxl,
             }}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm, paddingBottom: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.colors.divider }}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Go back"
@@ -336,9 +334,7 @@ export default function Settings() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   borderRadius: t.radii.pill,
-                  backgroundColor: t.colors.surface,
-                  borderWidth: 1,
-                  borderColor: t.colors.border,
+                  backgroundColor: t.colors.bg,
                 }}
               >
                 <Text style={{ color: t.colors.ink, fontSize: 24 }}>‹</Text>
@@ -359,7 +355,7 @@ export default function Settings() {
               </View>
             </View>
 
-            <Card style={{ gap: t.spacing.md }}>
+            <Card style={{ gap: 12 }}>
               <SectionTitle>Your profile</SectionTitle>
               <Text style={{ color: t.colors.muted }}>
                 Name the people in this little corner of the world.
@@ -393,7 +389,7 @@ export default function Settings() {
               />
             </Card>
 
-            <Card style={{ gap: t.spacing.sm }}>
+            <Card style={{ gap: 8 }}>
               <SectionTitle>Check-in topics</SectionTitle>
               <Text style={{ color: t.colors.muted }}>
                 Choose the gentle nudges your companion may suggest.
@@ -402,7 +398,7 @@ export default function Settings() {
                 {topics.map(([key, label], index) => (
                   <View
                     key={key}
-                    style={{ borderTopWidth: index ? 1 : 0, borderColor: t.colors.border }}
+                    style={{ borderTopWidth: index ? StyleSheet.hairlineWidth : 0, borderColor: t.colors.divider }}
                   >
                     <SettingSwitch
                       label={label}
@@ -414,7 +410,7 @@ export default function Settings() {
               </View>
             </Card>
 
-            <Card style={{ gap: t.spacing.sm }}>
+            <Card style={{ gap: 8 }}>
               <SectionTitle>Privacy and notifications</SectionTitle>
               <SettingSwitch
                 label="Helpful memories"
@@ -422,7 +418,7 @@ export default function Settings() {
                 value={memoryConsent}
                 onValueChange={setMemory}
               />
-              <View style={{ borderTopWidth: 1, borderColor: t.colors.border }}>
+              <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: t.colors.divider }}>
                 <SettingSwitch
                   label="Gentle notifications"
                   detail="Allow check-ins and reminders from your companion."
@@ -432,7 +428,7 @@ export default function Settings() {
               </View>
             </Card>
 
-            <Card style={{ gap: t.spacing.md }}>
+            <Card style={{ gap: 12 }}>
               <SectionTitle>Appearance</SectionTitle>
               <Text style={{ color: t.colors.muted }}>Choose what feels easiest on your eyes.</Text>
               <View style={{ flexDirection: 'row', gap: t.spacing.sm }}>
@@ -449,14 +445,14 @@ export default function Settings() {
                         alignItems: 'center',
                         borderRadius: t.radii.pill,
                         paddingVertical: t.spacing.sm,
-                        backgroundColor: selected ? t.colors.primary : t.colors.background,
-                        borderWidth: selected ? 0 : 1,
-                        borderColor: t.colors.border,
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        borderColor: selected ? t.colors.accent : t.colors.divider,
                       }}
                     >
                       <Text
                         style={{
-                          color: selected ? t.colors.onPrimary : t.colors.ink,
+                          color: selected ? t.colors.accent : t.colors.ink,
                           fontFamily: 'Nunito_700Bold',
                         }}
                       >
@@ -468,7 +464,7 @@ export default function Settings() {
               </View>
             </Card>
 
-            <Card style={{ gap: t.spacing.md }}>
+            <Card style={{ gap: 12 }}>
               <SectionTitle>Reminders and check-ins</SectionTitle>
               <Button
                 label="Schedule a gentle reminder"
@@ -491,7 +487,7 @@ export default function Settings() {
                   })
                 }
               />
-              <View style={{ height: 1, backgroundColor: t.colors.border }} />
+              <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: t.colors.divider }} />
               <TextInput
                 accessibilityLabel="Reminder title"
                 value={reminderTitle}
@@ -507,13 +503,7 @@ export default function Settings() {
                 <TimePickerButton
                   value={reminderTime}
                   label="Reminder time"
-                  onPress={() => {
-                    const opened = openNativeTimePicker({
-                      value: reminderTime,
-                      onChange: setReminderTime,
-                    });
-                    if (!opened) setClockModalVisible(true);
-                  }}
+                  onPress={() => setClockModalVisible(true)}
                 />
               </View>
               <ClockTimePickerModal
@@ -547,13 +537,13 @@ export default function Settings() {
                     accessibilityLabel={'Delete ' + reminder.title}
                     onPress={() => void handleDeleteReminder(reminder.id)}
                   >
-                    <Text style={{ color: '#B94B62', fontFamily: 'Nunito_700Bold' }}>Delete</Text>
+                    <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>Delete</Text>
                   </Pressable>
                 </View>
               ))}
             </Card>
 
-            <Card style={{ gap: t.spacing.md }}>
+            <Card style={{ gap: 12 }}>
               <SectionTitle>What your companion remembers</SectionTitle>
               {memories.length ? (
                 memories.map((memory) => (
@@ -576,7 +566,7 @@ export default function Settings() {
                         )
                       }
                     >
-                      <Text style={{ color: '#B94B62', fontFamily: 'Nunito_700Bold' }}>Delete</Text>
+                      <Text style={{ color: t.colors.ink, fontFamily: 'Nunito_700Bold' }}>Delete</Text>
                     </Pressable>
                   </View>
                 ))
@@ -585,7 +575,7 @@ export default function Settings() {
               )}
             </Card>
 
-            <Card style={{ gap: t.spacing.md }}>
+            <Card style={{ gap: 12 }}>
               <SectionTitle>Account and about</SectionTitle>
               <Text style={{ color: t.colors.muted, lineHeight: 22 }}>
                 Solace is a companion, not a replacement for professional care. If you may be in
@@ -664,6 +654,6 @@ export default function Settings() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </GradientBackground>
+    </ScreenBackground>
   );
 }
