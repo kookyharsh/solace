@@ -65,7 +65,7 @@ export default function Grounding() {
               padding: t.spacing.md,
             }}
           >
-            <Text style={{ color: '#fff', textAlign: 'center', fontFamily: 'Nunito_700Bold' }}>
+            <Text style={{ color: t.colors.onPrimary, textAlign: 'center', fontFamily: 'Nunito_700Bold' }}>
               {done ? 'Back to wellness' : step === steps.length - 1 ? 'Finish' : 'Next'}
             </Text>
           </Pressable>

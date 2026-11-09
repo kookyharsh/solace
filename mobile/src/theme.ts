@@ -8,6 +8,14 @@ import {
   type ReactNode,
 } from 'react';
 import { useColorScheme } from 'react-native';
+import { Uniwind } from 'uniwind';
+
+export const palette = {
+  sage: '#ABC270',
+  honey: '#FEC868',
+  apricot: '#FDA769',
+  espresso: '#473C33',
+} as const;
 
 const shared = {
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 },
@@ -21,33 +29,38 @@ const shared = {
       shadowOffset: { width: 0, height: 4 },
     },
   },
-  mood: ['#8A8FB8', '#9DB4E0', '#BFD8C8', '#FFD98A', '#FFB59E'],
 } as const;
 export const themes = {
   light: {
     ...shared,
     colors: {
-      background: '#FBF7F2',
-      surface: '#FFFFFF',
-      ink: '#2B2A33',
-      muted: '#7C7A8A',
-      primary: '#8B7CF6',
-      secondary: '#FFB59E',
-      accent: '#8FD6C0',
-      warning: '#FFD98A',
+      background: '#FBF8EC',
+      surface: '#FFFCF4',
+      ink: palette.espresso,
+      muted: '#716154',
+      primary: '#4E602E',
+      onPrimary: '#FFFFFF',
+      secondary: palette.apricot,
+      accent: palette.sage,
+      warning: palette.honey,
+      border: '#DFD6C1',
+      wash: '#E9EED5',
     },
   },
   dark: {
     ...shared,
     colors: {
-      background: '#14121C',
-      surface: '#1E1B2B',
-      ink: '#F3F0FA',
-      muted: '#A6A0B6',
-      primary: '#A99CFF',
-      secondary: '#FFB59E',
-      accent: '#8FD6C0',
-      warning: '#FFD98A',
+      background: '#252019',
+      surface: '#332B22',
+      ink: '#FFF6E6',
+      muted: '#CFBFAC',
+      primary: palette.sage,
+      onPrimary: '#252019',
+      secondary: palette.apricot,
+      accent: palette.sage,
+      warning: palette.honey,
+      border: '#584A3A',
+      wash: '#313722',
     },
   },
 };
@@ -63,6 +76,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       if (value === 'light' || value === 'dark' || value === 'system') setModeState(value);
     });
   }, []);
+  useEffect(() => {
+    Uniwind.setTheme(mode);
+  }, [mode]);
   const setMode = (next: ThemeMode) => {
     setModeState(next);
     void AsyncStorage.setItem('solace.theme', next);

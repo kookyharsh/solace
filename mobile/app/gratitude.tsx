@@ -64,7 +64,7 @@ export default function Gratitude() {
               opacity: !note.trim() || saved ? 0.5 : 1,
             }}
           >
-            <Text style={{ color: '#fff', textAlign: 'center', fontFamily: 'Nunito_700Bold' }}>
+            <Text style={{ color: t.colors.onPrimary, textAlign: 'center', fontFamily: 'Nunito_700Bold' }}>
               {saved ? 'Saved · +15 XP' : 'Save gratitude'}
             </Text>
           </Pressable>

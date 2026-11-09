@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CompanionBlob } from '../../src/companion/CompanionBlob';
 import { Button, Card, Chip, GradientBackground, ProgressBar } from '../../src/components/ui';
+import { MoodChoices } from '../../src/components/MoodChoices';
 import { useTheme } from '../../src/theme';
 import {
   completeDailyChallenge,
@@ -186,21 +187,15 @@ export default function Wellness() {
             >
               How are you feeling?
             </Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              {['😔', '🙁', '😐', '🙂', '😊'].map((emoji, index) => (
-                <Chip
-                  key={emoji}
-                  label={emoji}
-                  selected={mood === index + 1}
-                  onPress={() => {
-                    setMood(index + 1);
-                    toggle('mood');
-                    void completeDailyChallenge('mood').catch(() => undefined);
-                    void logMood(index + 1).catch(() => undefined);
-                  }}
-                />
-              ))}
-            </View>
+            <MoodChoices
+              value={mood}
+              onChoose={(score) => {
+                setMood(score);
+                toggle('mood');
+                void completeDailyChallenge('mood').catch(() => undefined);
+                void logMood(score).catch(() => undefined);
+              }}
+            />
           </Card>
           <Card style={{ gap: t.spacing.md }}>
             <Text

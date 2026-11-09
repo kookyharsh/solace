@@ -261,7 +261,7 @@ export default function Settings() {
                   paddingVertical: t.spacing.sm,
                 }}
               >
-                <Text style={{ color: mode === option ? '#fff' : t.colors.ink }}>
+                <Text style={{ color: mode === option ? t.colors.onPrimary : t.colors.ink }}>
                   {option[0].toUpperCase() + option.slice(1)}
                 </Text>
               </Pressable>

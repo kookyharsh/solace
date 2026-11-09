@@ -41,7 +41,13 @@ export function Button({
         alignItems: 'center',
       }}
     >
-      <Text style={{ color: '#FFFFFF', fontSize: t.typography.body, fontFamily: 'Nunito_700Bold' }}>
+      <Text
+        style={{
+          color: t.colors.onPrimary,
+          fontSize: t.typography.body,
+          fontFamily: 'Nunito_700Bold',
+        }}
+      >
         {label}
       </Text>
     </Pressable>
@@ -72,7 +78,12 @@ export function Chip({
         paddingVertical: t.spacing.sm,
       }}
     >
-      <Text style={{ color: selected ? '#FFFFFF' : t.colors.ink, fontFamily: 'Inter_400Regular' }}>
+      <Text
+        style={{
+          color: selected ? t.colors.onPrimary : t.colors.ink,
+          fontFamily: 'Inter_400Regular',
+        }}
+      >
         {label}
       </Text>
     </Pressable>

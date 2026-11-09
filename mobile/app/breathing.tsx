@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, GradientBackground } from '../src/components/ui';
 import { useTheme } from '../src/theme';
 import { awardXp, completeDailyChallenge, logMood } from '../src/api';
-import { Chip } from '../src/components/ui';
+import { MoodChoices } from '../src/components/MoodChoices';
 
 export default function Breathing() {
   const t = useTheme();
@@ -101,19 +101,13 @@ export default function Breathing() {
             <Text style={{ color: t.colors.muted, textAlign: 'center' }}>How do you feel now?</Text>
           )}
           {completed && (
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              {['😔', '🙁', '😐', '🙂', '😊'].map((emoji, index) => (
-                <Chip
-                  key={emoji}
-                  label={emoji}
-                  selected={afterMood === index + 1}
-                  onPress={() => {
-                    setAfterMood(index + 1);
-                    void logMood(index + 1).catch(() => undefined);
-                  }}
-                />
-              ))}
-            </View>
+            <MoodChoices
+              value={afterMood}
+              onChoose={(score) => {
+                setAfterMood(score);
+                void logMood(score).catch(() => undefined);
+              }}
+            />
           )}
           {!running && <Button label="Return to chat" onPress={() => router.back()} />}
         </View>
