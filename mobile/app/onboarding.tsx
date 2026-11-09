@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Switch, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -112,9 +112,14 @@ export default function Onboarding() {
       <SafeAreaView style={{ flex: 1 }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1, padding: t.spacing.lg, gap: t.spacing.lg }}
+          style={{ flex: 1 }}
         >
-          <View style={{ alignItems: 'center', gap: t.spacing.md, marginTop: t.spacing.lg }}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ padding: t.spacing.lg, gap: t.spacing.lg, paddingBottom: t.spacing.xl * 3 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={{ alignItems: 'center', gap: t.spacing.md, marginTop: t.spacing.lg }}>
             <CompanionBlob size={110} state="happy" />
             <Text
               style={{
@@ -345,7 +350,8 @@ export default function Onboarding() {
               onPress={() => void finish()}
             />
           </Card>
-        </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
       </SafeAreaView>
     </GradientBackground>
   );
