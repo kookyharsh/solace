@@ -20,6 +20,10 @@ Run `docker compose up -d` to start the optional local database defined in `comp
 
 Run `pnpm install`, `pnpm db:generate`, `pnpm db:migrate`, and `pnpm dev`. Seed the quote catalog with `pnpm --filter @solace/server db:seed`. Use `pnpm --filter @solace/mobile android` for a local development build, or `eas build --profile development --platform android` after signing in to EAS. The preview profile produces an APK. Run `pnpm mobile:doctor`, `pnpm check`, `pnpm build`, `pnpm --filter @solace/server test`, and `pnpm --filter @solace/mobile export:android` before reviewing a release.
 
+## Production API
+
+The EAS `preview` profile is configured to call `https://solace-api-sksu.onrender.com`. Configure the corresponding Render service with the existing production `DATABASE_URL`, `GOOGLE_CLIENT_ID`, `JWT_SECRET`, and `JWT_ISSUER` as protected environment variables before distributing the APK.
+
 ## API
 
 `GET /health` checks the process; `GET /ready` checks the database. `POST /auth/google` accepts `{idToken}`, verifies it with Google and returns access and refresh tokens. `POST /auth/guest` creates a local guest session. `POST /auth/refresh` accepts `{refreshToken}` and rotates it. `GET /me` requires a Bearer access token. Chat, conversation history, mood logging, gamification, export, and account deletion are available behind the same auth middleware. Errors are `{error:{code,message}}`.

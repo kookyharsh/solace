@@ -6,6 +6,12 @@
       "distribution": "internal",
       "android": { "buildType": "apk" }
     },
-    "preview": { "distribution": "internal", "android": { "buildType": "apk" } }
+    "preview": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://solace-api-sksu.onrender.com"
+      }
+    }
   }
 }
