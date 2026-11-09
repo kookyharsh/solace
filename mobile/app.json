@@ -20,9 +20,6 @@
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone."
       }
     },
-    "splash": {
-      "backgroundColor": "#FFFFFF"
-    },
     "plugins": [
       "expo-router",
       "expo-font",
@@ -30,7 +27,12 @@
       "expo-notifications",
       "expo-web-browser",
       "expo-speech-recognition",
-      "expo-splash-screen"
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
