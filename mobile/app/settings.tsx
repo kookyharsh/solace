@@ -106,6 +106,39 @@ function SettingSwitch({
   );
 }
 
+function GoogleAccountSection() {
+  const [googleBusy, setGoogleBusy] = useState(false);
+
+  const beginGoogleLink = useCallback(() => {
+    if (googleBusy) return false;
+    setGoogleBusy(true);
+    return true;
+  }, [googleBusy]);
+
+  const completeGoogleLink = useCallback(() => {
+    setGoogleBusy(false);
+    Alert.alert('Google connected', 'Your guest account is now connected to Google.');
+  }, []);
+
+  const failGoogleLink = useCallback((errorMessage?: string) => {
+    setGoogleBusy(false);
+    if (errorMessage) {
+      Alert.alert('Google connection', errorMessage);
+    }
+  }, []);
+
+  const google = useGoogleSignIn(beginGoogleLink, completeGoogleLink, failGoogleLink);
+
+  return (
+    <Button
+      label={googleBusy ? 'Connecting Google…' : 'Connect Google account'}
+      variant="outline"
+      disabled={googleBusy || !google.ready}
+      onPress={() => void google.signIn().catch(failGoogleLink)}
+    />
+  );
+}
+
 export default function Settings() {
   const t = useTheme();
   const { mode, setMode } = useThemeMode();
@@ -125,24 +158,6 @@ export default function Settings() {
   const [addingReminder, setAddingReminder] = useState(false);
   const [memoryConsent, setMemoryConsent] = useState(false);
   const [notificationConsent, setNotificationConsent] = useState(false);
-  const [googleBusy, setGoogleBusy] = useState(false);
-
-  const beginGoogleLink = useCallback(() => {
-    if (googleBusy) return false;
-    setGoogleBusy(true);
-    return true;
-  }, [googleBusy]);
-  const completeGoogleLink = useCallback(() => {
-    setGoogleBusy(false);
-    Alert.alert('Google connected', 'Your guest account is now connected to Google.');
-  }, []);
-  const failGoogleLink = useCallback((errorMessage?: string) => {
-    setGoogleBusy(false);
-    if (errorMessage) {
-      Alert.alert('Google connection', errorMessage);
-    }
-  }, []);
-  const google = useGoogleSignIn(beginGoogleLink, completeGoogleLink, failGoogleLink);
 
   useEffect(() => {
     AsyncStorage.getItem('solace.profile').then((raw) => {
@@ -530,7 +545,7 @@ export default function Settings() {
                   }}
                 >
                   <Text style={{ color: t.colors.ink, flex: 1, fontFamily: 'Nunito_700Bold' }}>
-                    {format12Hour(reminder.time)} · {reminder.title}
+                    {format12Hour(reminder.time || '08:00')} · {reminder.title}
                   </Text>
                   <Pressable
                     accessibilityRole="button"
@@ -582,12 +597,7 @@ export default function Settings() {
                 danger, contact local emergency services or a trusted person.
               </Text>
               {googleSignInConfigured ? (
-                <Button
-                  label={googleBusy ? 'Connecting Google…' : 'Connect Google account'}
-                  variant="outline"
-                  disabled={googleBusy || !google.ready}
-                  onPress={() => void google.signIn().catch(failGoogleLink)}
-                />
+                <GoogleAccountSection />
               ) : (
                 <Text style={{ color: t.colors.muted }}>
                   Google connection is unavailable in this build.

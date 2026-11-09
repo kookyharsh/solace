@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
-import { mergeGuestWithGoogle } from './api';
+import { exchangeGoogleToken, mergeGuestWithGoogle } from './api';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -15,17 +15,23 @@ const currentClientId =
 
 export const googleSignInConfigured = Boolean(currentClientId || webClientId);
 
+// Safe fallbacks to prevent Google.useIdTokenAuthRequest from throwing invariantClientId error during render
+const safeWebClientId = webClientId || 'google-auth-placeholder.apps.googleusercontent.com';
+const safeAndroidClientId = androidClientId || webClientId || safeWebClientId;
+const safeIosClientId = iosClientId || webClientId || safeWebClientId;
+
 export function useGoogleSignIn(
   onMergeStart: () => boolean,
   onSuccess: () => void,
   onFailure: (errorMessage?: string) => void,
+  mode: 'merge' | 'signIn' = 'merge',
 ) {
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest(
     {
-      clientId: webClientId,
-      webClientId,
-      androidClientId,
-      iosClientId,
+      clientId: safeWebClientId,
+      webClientId: safeWebClientId,
+      androidClientId: safeAndroidClientId,
+      iosClientId: safeIosClientId,
     },
     {
       scheme: 'solace',
@@ -43,7 +49,8 @@ export function useGoogleSignIn(
       if (idToken) {
         if (!processingRef.current && onMergeStart()) {
           processingRef.current = true;
-          mergeGuestWithGoogle(idToken)
+          const authAction = mode === 'signIn' ? exchangeGoogleToken(idToken) : mergeGuestWithGoogle(idToken);
+          authAction
             .then(() => {
               processingRef.current = false;
               onSuccess();
@@ -60,14 +67,17 @@ export function useGoogleSignIn(
     } else if (response.type === 'error') {
       onFailure(response.error?.message || 'Google sign-in was interrupted');
     } else if (response.type === 'dismiss' || response.type === 'cancel') {
-      // User closed browser sheet without signing in — reset state cleanly without error alert
+      // User closed browser sheet without signing in — reset cleanly
       onFailure(undefined);
     }
-  }, [onFailure, onMergeStart, onSuccess, response]);
+  }, [mode, onFailure, onMergeStart, onSuccess, response]);
 
   return {
-    ready: !!request,
+    ready: !!request && googleSignInConfigured,
     signIn: async () => {
+      if (!googleSignInConfigured) {
+        throw new Error('Google Sign-In is not configured in this environment.');
+      }
       processingRef.current = false;
       return promptAsync();
     },

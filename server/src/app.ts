@@ -1271,6 +1271,7 @@ export function createApp(
           const streaked = await updateActivityStreak(req.userId!, stats);
           const withStreakBonus = await awardStreakBonus(req.userId!, streaked);
           await refreshStatsLevel({ ...withStreakBonus, userId: req.userId! });
+          await unlockAchievement(req.userId!, 'first_challenge');
         }
       }
       const completedToday = await db.dailyChallenge.count({
@@ -1299,6 +1300,7 @@ export function createApp(
           const streaked = await updateActivityStreak(req.userId!, stats);
           const withStreakBonus = await awardStreakBonus(req.userId!, streaked);
           await refreshStatsLevel({ ...withStreakBonus, userId: req.userId! });
+          await unlockAchievement(req.userId!, 'first_challenge');
         }
       }
       res.json({ ...row, xpAwarded, bonusAwarded });
@@ -1349,8 +1351,15 @@ export function createApp(
       const unlocks = new Set<string>(['first_words']);
       if (computed.level >= 5) unlocks.add('level_5');
       if (input.type === 'breathing') {
+        unlocks.add('first_breath');
         const count = await db.xpEvent.count({ where: { userId: req.userId!, type: 'breathing' } });
-        if (count >= 10) unlocks.add('breath_master');
+        if (count >= 5) unlocks.add('breath_master');
+      }
+      if (input.type === 'mood' || input.type === 'mood_checkin') {
+        unlocks.add('first_mood');
+      }
+      if (input.type === 'daily_challenge') {
+        unlocks.add('first_challenge');
       }
       for (const key of unlocks) await unlockAchievement(req.userId!, key);
       res.json({ event, stats: leveled, levelUp: computed.level > streaked.level });
@@ -1453,6 +1462,7 @@ export function createApp(
           const streaked = await updateActivityStreak(req.userId!, stats);
           const withStreakBonus = await awardStreakBonus(req.userId!, streaked);
           await refreshStatsLevel({ ...withStreakBonus, userId: req.userId! });
+          await unlockAchievement(req.userId!, 'first_challenge');
         }
       }
       res.status(201).json({ conversationId: conversation.id, userMessage, assistantMessage });

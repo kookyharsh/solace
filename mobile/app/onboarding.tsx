@@ -96,20 +96,24 @@ function GoogleOption({
   onFailure,
   onMergeStart,
   disabled,
+  label = 'Sign in with Google',
+  mode = 'merge',
 }: {
   onSuccess: () => void;
   onFailure: (msg?: string) => void;
   onMergeStart: () => boolean;
   disabled: boolean;
+  label?: string;
+  mode?: 'merge' | 'signIn';
 }) {
-  const google = useGoogleSignIn(onMergeStart, onSuccess, onFailure);
+  const google = useGoogleSignIn(onMergeStart, onSuccess, onFailure, mode);
   return (
     <Button
       variant="outline"
       isDisabled={disabled || !google.ready}
       onPress={() => void google.signIn().catch(() => onFailure('Google sign-in could not be started'))}
     >
-      Continue with Google
+      {label}
     </Button>
   );
 }
@@ -498,16 +502,22 @@ export default function Onboarding() {
                 I’m glad we met. When you’re ready, we can pick up right here.
               </Text>
               <View style={{ alignSelf: 'stretch', gap: 8 }}>
-                <Button isDisabled={busy || googleBusy} onPress={() => void complete()}>
-                  Continue as guest
-                </Button>
                 {googleSignInConfigured && (
                   <GoogleOption
                     onSuccess={completeWithGoogle}
                     onFailure={googleFailed}
                     onMergeStart={beginGoogleMerge}
                     disabled={busy || googleBusy}
+                    label="Sign in with Google"
                   />
+                )}
+                <Button variant={googleSignInConfigured ? 'outline' : 'primary'} isDisabled={busy || googleBusy} onPress={() => void complete()}>
+                  Continue as guest
+                </Button>
+                {!googleSignInConfigured && (
+                  <Text style={{ color: colors.muted, textAlign: 'center', fontSize: 13 }}>
+                    Google sign-in is not configured in this build.
+                  </Text>
                 )}
               </View>
               {!!error && (
@@ -536,6 +546,16 @@ export default function Onboarding() {
                     {answers.companionName || 'Solace'}
                   </Text>
                 </View>
+                {turns.length === 0 && googleSignInConfigured && (
+                  <GoogleOption
+                    onSuccess={completeWithGoogle}
+                    onFailure={googleFailed}
+                    onMergeStart={beginGoogleMerge}
+                    disabled={busy || googleBusy}
+                    label="Sign in"
+                    mode="signIn"
+                  />
+                )}
               </View>
               <ProgressBar value={(turns.length / questions.length) * 100} height={2} />
             </View>

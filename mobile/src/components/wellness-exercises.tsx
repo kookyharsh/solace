@@ -5,7 +5,8 @@ import { Button, Card, ProgressBar } from './ui';
 import { useConversationReduceMotion } from './conversation';
 import { CompanionBlob } from '../companion/CompanionBlob';
 import { useTheme } from '../theme';
-import { awardXp, completeDailyChallenge, logMood, saveJournalEntry } from '../api';
+import { completeDailyChallenge, logMood, saveJournalEntry } from '../api';
+import { addLocalXp } from '../gamification';
 import { MoodChoices } from './MoodChoices';
 
 const breathingDurationSeconds = 60;
@@ -74,8 +75,8 @@ export function BreathingExercise({ onDone }: { onDone?: () => void }) {
     if (!completed || saved) return;
     let active = true;
     void Promise.all([
-      completeDailyChallenge('breath'),
-      awardXp('breathing', 15, completionKey.current),
+      completeDailyChallenge('breath').catch(() => undefined),
+      addLocalXp(15, 'breathing', completionKey.current),
     ])
       .then(() => active && setSaved(true))
       .catch(() => active && setSaveError(true));
@@ -121,6 +122,18 @@ export function BreathingExercise({ onDone }: { onDone?: () => void }) {
           else setRunning((value) => !value);
         }}
       />
+      {!completed && (
+        <Button
+          label="Complete session now"
+          variant="outline"
+          onPress={() => {
+            setSeconds(0);
+            setRunning(false);
+            setCompleted(true);
+            onDone?.();
+          }}
+        />
+      )}
       {saveError && (
         <Button
           label="Save completion again"
@@ -163,7 +176,7 @@ export function GroundingExercise({ onDone }: { onDone?: () => void }) {
   const done = step >= groundingSteps.length;
   const saveCompletion = () => {
     setSaveError(false);
-    void awardXp('grounding', 15, completionKey.current)
+    void addLocalXp(15, 'grounding', completionKey.current)
       .then(() => setSaved(true))
       .catch(() => setSaveError(true));
   };
@@ -227,9 +240,9 @@ export function GratitudeExercise({ onDone }: { onDone?: () => void }) {
     setError(false);
     try {
       await Promise.all([
-        completeDailyChallenge('gratitude'),
-        saveJournalEntry(`Today I’m grateful for: ${note.trim()}`),
-        awardXp('gratitude', 15, `gratitude-${new Date().toISOString().slice(0, 10)}`),
+        completeDailyChallenge('gratitude').catch(() => undefined),
+        saveJournalEntry(`Today I’m grateful for: ${note.trim()}`).catch(() => undefined),
+        addLocalXp(15, 'gratitude', `gratitude-${new Date().toISOString().slice(0, 10)}`),
       ]);
       setSaved(true);
       onDone?.();

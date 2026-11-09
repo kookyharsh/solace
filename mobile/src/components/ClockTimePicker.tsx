@@ -20,8 +20,9 @@ export interface ClockTime {
 }
 
 /** Convert "HH:MM" (24h) to { hour12, minute, period, formatted } */
-export function to12Hour(time24 = '08:00'): ClockTime & { formatted: string } {
-  const [hStr, mStr] = time24.split(':');
+export function to12Hour(time24: string = '08:00'): ClockTime & { formatted: string } {
+  const safeTime = typeof time24 === 'string' && time24.includes(':') ? time24 : '08:00';
+  const [hStr, mStr] = safeTime.split(':');
   let h = Number(hStr);
   const m = Number(mStr) || 0;
   if (isNaN(h)) h = 8;

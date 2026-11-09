@@ -59,7 +59,7 @@ export async function generateCompanionReply(
               role: 'user',
               parts: [
                 {
-                  text: `You are ${companionName?.trim() || 'an unnamed'} warm wellness companion. Keep replies to 1-4 short sentences, ask one question, never diagnose. Do not claim to be human. Use the user's language when possible. ${context ? `Known context (only use if relevant): ${context}` : ''} User says: ${text}`,
+                  text: `You are ${companionName?.trim() || 'an unnamed'} warm wellness companion. Keep replies to 1-4 short sentences, ask one question, never diagnose. Do not claim to be human. Use the user's language when possible. When the user shares their mood or feelings, validate them with warmth and share a fascinating, unexpected curiosity or heartwarming wonder from nature, science, or history that matches their mood, then ask a fun or thoughtful open question to hook them into conversation. ${context ? `Known context (only use if relevant): ${context}` : ''} User says: ${text}`,
                 },
               ],
             },

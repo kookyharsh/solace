@@ -35,6 +35,8 @@ import { MoodChoices, moodLabel, type MoodScore } from '../../src/components/Moo
 import { ChatAction, isMoodCheckInAction } from '../../src/components/chat-actions';
 import { useTheme } from '../../src/theme';
 import { colorForMood } from '../../src/companion/moodTheme';
+import { getMoodConversationHook } from '../../src/moodConversationHooks';
+import { addLocalXp } from '../../src/gamification';
 import { offlineRepository, type CachedChatMessage } from '../../src/offline/repository';
 import {
   flushQueuedChatMessages,
@@ -294,6 +296,25 @@ function ChatThread({
     );
     liveReply.current = undefined;
     setLiveReplyId(undefined);
+
+    // 1. Award local XP (+10 XP) and evaluate achievements
+    void addLocalXp(10, 'mood');
+
+    // 2. Deliver engaging mood-tailored story & conversation hook
+    const hook = getMoodConversationHook(score);
+    const hookMessageId = `mood-hook-${Date.now()}`;
+    const assistantHookMessage: CachedChatMessage = {
+      id: hookMessageId,
+      role: 'assistant',
+      text: hook.text,
+      parts: [{ type: 'quick_replies', options: hook.quickReplies }],
+    };
+    setTimeout(() => {
+      setMessages((current) => [...current, assistantHookMessage]);
+      setLiveReplyId(hookMessageId);
+      liveReply.current = hookMessageId;
+    }, 450);
+
     try {
       const saved = await logMood(score, undefined, messageId);
       if (saved.score !== score) {
