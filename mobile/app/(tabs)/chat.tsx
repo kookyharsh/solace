@@ -89,7 +89,6 @@ function ChatThread({
   const [focused, setFocused] = useState(false);
   const [historyUnavailable, setHistoryUnavailable] = useState(false);
   const [pending, setPending] = useState(false);
-  const [reveal, setReveal] = useState<Reveal>();
   const [liveReplyId, setLiveReplyId] = useState<string | undefined>(
     initialConversationId ? undefined : welcome.id,
   );
@@ -130,6 +129,7 @@ function ChatThread({
       })
       .catch(() => undefined);
     void flushQueuedChatMessages().catch(() => undefined);
+    void flushQueuedMoods().catch(() => undefined);
 
     async function load() {
       const cached = await offlineRepository
@@ -184,20 +184,6 @@ function ChatThread({
   }, [conversationId, focused, hydrated, messages, pending]);
 
   useEffect(() => {
-    if (!reveal) return;
-    if (!animate) {
-      setReveal(undefined);
-      return;
-    }
-    const complete = reveal.visible >= reveal.total;
-    const timer = setTimeout(
-      () => setReveal(complete ? undefined : { ...reveal, visible: reveal.visible + 1 }),
-      complete ? 210 : 180,
-    );
-    return () => clearTimeout(timer);
-  }, [animate, reveal]);
-
-  useEffect(() => {
     if (!avatarReaction) return;
     const timer = setTimeout(() => setAvatarReaction(undefined), 1800);
     return () => clearTimeout(timer);
@@ -212,7 +198,6 @@ function ChatThread({
     liveReply.current = undefined;
     setLiveReplyId(undefined);
     setMoodError(false);
-    setReveal(undefined);
     setAvatarReaction(undefined);
     setHistoryUnavailable(false);
     if (value === undefined) setDraft('');
@@ -267,9 +252,6 @@ function ChatThread({
     const expression =
       !crisis && typeof companion?.expression === 'string' ? companion.expression : undefined;
     setAvatarReaction({ state, expression });
-    if (animate && !crisis) {
-      setReveal({ id: reply.id, visible: 1, total: replyBubbles(reply.text).length });
-    }
     setMessages((current) => [...current, reply]);
   };
 
@@ -289,21 +271,27 @@ function ChatThread({
     setMoodError(false);
     setAvatarMood(score);
     setAvatarReaction({ state: reactionForMood(score) });
+    // Optimistically update the message with mood label immediately
+    setMessages((current) =>
+      current.map((item) =>
+        item.id === messageId ? { ...item, moodLabel: moodLabel(score) } : item,
+      ),
+    );
+    liveReply.current = undefined;
+    setLiveReplyId(undefined);
     try {
       const saved = await logMood(score, undefined, messageId);
       if (saved.score !== score) {
         setAvatarMood(saved.score);
         setAvatarReaction({ state: reactionForMood(saved.score) });
+        setMessages((current) =>
+          current.map((item) =>
+            item.id === messageId ? { ...item, moodLabel: moodLabel(saved.score) } : item,
+          ),
+        );
       }
-      liveReply.current = undefined;
-      setLiveReplyId(undefined);
-      setMessages((current) =>
-        current.map((item) =>
-          item.id === messageId ? { ...item, moodLabel: moodLabel(saved.score) } : item,
-        ),
-      );
     } catch {
-      setMoodError(true);
+      // optimistic state is already preserved
     } finally {
       moodRequest.current = false;
       setSavingMood(false);
@@ -410,66 +398,62 @@ function ChatThread({
             renderItem={({ item }) => {
               if (item.role === 'user') return <ConversationBubble role="user" text={item.text} />;
               const live = hydrated && item.id === latestId && item.id === liveReplyId;
-              const motion = animate && reveal?.id === item.id ? reveal : undefined;
-              const bubbles = replyBubbles(item.text);
               const quick = live && item.parts?.find((part) => part.type === 'quick_replies');
               const mood = activeMoodPromptId === item.id;
               return (
-                <View style={{ gap: 7 }}>
-                  {bubbles.slice(0, motion?.visible ?? bubbles.length).map((bubble, index) => (
-                    <ConversationBubble key={index} text={bubble} animate={!!motion}>
-                      {index === bubbles.length - 1 && <RichMessageParts item={item} />}
-                    </ConversationBubble>
-                  ))}
-                  {(!motion || motion.visible >= bubbles.length) && (
-                    <>
-                      {!!quick && !mood && (
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                          {(Array.isArray(quick.options)
-                            ? (quick.options as string[])
-                            : quickReplies
-                          ).map((option) => (
-                            <Button
-                              key={option}
-                              size="sm"
-                              variant="outline"
-                              isDisabled={controlsDisabled}
-                              onPress={() => {
-                                if (liveReply.current === item.id) void send(option);
-                              }}
-                            >
-                              {option}
-                            </Button>
-                          ))}
-                        </View>
-                      )}
-                      {!!mood && (
-                        <View style={{ gap: 8, alignSelf: 'flex-start', maxWidth: '100%' }}>
-                          <MoodChoices
-                            disabled={controlsDisabled}
-                            onChoose={(score) => void chooseMood(item.id, score)}
-                          />
-                          {savingMood && (
-                            <Text accessibilityLiveRegion="polite" style={{ color: colors.muted }}>
-                              Saving your check-in…
-                            </Text>
-                          )}
-                          {moodError && (
-                            <Text accessibilityRole="alert" style={{ color: colors.ink }}>
-                              I couldn’t save that check-in. Tap your choice to try again.
-                            </Text>
-                          )}
-                        </View>
-                      )}
-                      {!!item.moodLabel && (
-                        <Text
-                          accessibilityLiveRegion="polite"
-                          style={{ color: colors.primary, fontFamily: 'Nunito_700Bold' }}
+                <View style={{ gap: 8, alignSelf: 'flex-start', maxWidth: '96%' }}>
+                  <ConversationBubble
+                    role="assistant"
+                    text={item.text}
+                    animate={animate && item.id === latestId}
+                  >
+                    <RichMessageParts item={item} />
+                  </ConversationBubble>
+                  {!!quick && !mood && (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                      {(Array.isArray(quick.options)
+                        ? (quick.options as string[])
+                        : quickReplies
+                      ).map((option) => (
+                        <Button
+                          key={option}
+                          size="sm"
+                          variant="outline"
+                          isDisabled={controlsDisabled}
+                          onPress={() => {
+                            if (liveReply.current === item.id) void send(option);
+                          }}
                         >
-                          {'Mood saved · ' + item.moodLabel}
+                          {option}
+                        </Button>
+                      ))}
+                    </View>
+                  )}
+                  {!!mood && (
+                    <View style={{ gap: 8, alignSelf: 'flex-start', maxWidth: '100%', marginTop: 4 }}>
+                      <MoodChoices
+                        disabled={controlsDisabled}
+                        onChoose={(score) => void chooseMood(item.id, score)}
+                      />
+                      {savingMood && (
+                        <Text accessibilityLiveRegion="polite" style={{ color: colors.muted }}>
+                          Saving your check-in…
                         </Text>
                       )}
-                    </>
+                      {moodError && (
+                        <Text accessibilityRole="alert" style={{ color: colors.ink }}>
+                          I couldn’t save that check-in. Tap your choice to try again.
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                  {!!item.moodLabel && (
+                    <Text
+                      accessibilityLiveRegion="polite"
+                      style={{ color: colors.primary, fontFamily: 'Nunito_700Bold', marginTop: 2 }}
+                    >
+                      {'Mood saved · ' + item.moodLabel}
+                    </Text>
                   )}
                 </View>
               );

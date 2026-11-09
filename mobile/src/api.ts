@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetch as fetchStream } from 'expo/fetch';
-import { offlineRepository } from './offline/repository';
+import { offlineRepository, type QueuedMood } from './offline/repository';
 
 const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:4000';
 const pendingSetupKey = 'solace.onboarding.pending';
@@ -290,9 +290,9 @@ export async function logMood(score: number, note?: string, checkInId?: string):
 }
 
 export async function flushQueuedMoods() {
-  const queue = await offlineRepository.readMoodQueue().catch(() => []);
+  const queue: QueuedMood[] = await offlineRepository.readMoodQueue().catch(() => []);
   if (!queue.length) return;
-  const remaining: typeof queue = [];
+  const remaining: QueuedMood[] = [];
   for (const item of queue) {
     try {
       await ensureGuestSession();
