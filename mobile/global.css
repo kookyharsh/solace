@@ -2,6 +2,11 @@
 @import 'uniwind';
 @import 'heroui-native/styles';
 
+@theme inline static {
+  --color-default-hover: var(--solace-default-hover);
+  --color-accent-hover: var(--solace-accent-hover);
+}
+
 @layer theme {
   :root {
     @variant light {
@@ -17,6 +22,8 @@
       --border: #dfd6c1;
       --field-background: #fffcf4;
       --focus: #4e602e;
+      --solace-default-hover: #e5ddc9;
+      --solace-accent-hover: #9bb061;
     }
 
     @variant dark {
@@ -32,6 +39,8 @@
       --border: #584a3a;
       --field-background: #332b22;
       --focus: #abc270;
+      --solace-default-hover: #56493e;
+      --solace-accent-hover: #9bb061;
     }
   }
 }

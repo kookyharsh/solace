@@ -12,7 +12,7 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontFamily: 'Nunito_700Bold', fontSize: 14 },
       }}
     >
-      <Tabs.Screen name="chat" options={{ title: 'Chat' }} />
+      <Tabs.Screen name="chat" options={{ title: 'Chat', tabBarHideOnKeyboard: true }} />
       <Tabs.Screen name="wellness" options={{ title: 'Wellness' }} />
     </Tabs>
   );

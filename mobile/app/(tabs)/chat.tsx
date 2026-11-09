@@ -272,7 +272,7 @@ function ChatThread({ initialConversationId }: { initialConversationId?: string 
       <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'web' ? undefined : 'padding'}
         >
           <View
             style={{

@@ -135,12 +135,6 @@ export default function Onboarding() {
     setPhase('thinking');
   };
 
-  const back = () => {
-    if (!turns.length || busy || phase !== 'question') return;
-    setError('');
-    setTurns((current) => current.slice(0, -1));
-  };
-
   const save = async () => {
     if (submitting.current) return;
     submitting.current = true;
@@ -202,13 +196,8 @@ export default function Onboarding() {
         trimmed || 'Solace is fine',
         trimmed ? 'I like that. ' + trimmed + ' it is.' : 'Solace it is, then.',
       );
-    } else {
-      answer(
-        key,
-        trimmed,
-        trimmed || 'I’ll skip my name',
-        trimmed ? 'Good to meet you, ' + trimmed + '.' : 'Of course. I’m glad you’re here.',
-      );
+    } else if (trimmed) {
+      answer(key, trimmed, trimmed, 'Good to meet you, ' + trimmed + '.');
     }
   };
 
@@ -274,40 +263,25 @@ export default function Onboarding() {
                 onPress={() => submitName(question, answers[question])}
               />
             </View>
-            <Button size="sm" variant="ghost" onPress={() => submitName(question, '')}>
-              {question === 'companionName' ? 'Keep Solace' : 'Skip for now'}
-            </Button>
+            {question === 'companionName' && (
+              <Button size="sm" variant="ghost" onPress={() => submitName(question, '')}>
+                Keep Solace
+              </Button>
+            )}
           </>
         );
       case 'mood':
         return (
-          <>
-            <MoodChoices
-              value={answers.mood}
-              onChoose={(score) =>
-                answer(
-                  'mood',
-                  score,
-                  moodLabel(score),
-                  'Thanks for telling me. We can take this at your pace.',
-                )
-              }
-            />
-            <Button
-              size="sm"
-              variant="ghost"
-              onPress={() =>
-                answer(
-                  'mood',
-                  undefined,
-                  'Skip for now',
-                  'That’s okay. We can check in another time.',
-                )
-              }
-            >
-              Skip for now
-            </Button>
-          </>
+          <MoodChoices
+            onChoose={(score) =>
+              answer(
+                'mood',
+                score,
+                moodLabel(score),
+                'Thanks for telling me. We can take this at your pace.',
+              )
+            }
+          />
         );
       case 'goals':
       case 'habits': {
@@ -342,14 +316,14 @@ export default function Onboarding() {
                 answer(
                   question,
                   selected,
-                  selected.length ? selected.map(label).join(', ') : 'Skip for now',
+                  selected.length ? selected.map(label).join(', ') : 'Nothing for now',
                   selected.length
                     ? 'We can start there and see what feels right.'
                     : 'Sure. We can come back to this anytime.',
                 )
               }
             >
-              {selected.length ? 'Continue' : 'Skip for now'}
+              Continue
             </Button>
           </>
         );
@@ -498,7 +472,7 @@ export default function Onboarding() {
         ) : (
           <KeyboardAvoidingView
             style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'web' ? undefined : 'padding'}
           >
             <View style={{ paddingHorizontal: 20, paddingBottom: 12, gap: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -593,11 +567,6 @@ export default function Onboarding() {
                     </Text>
                   )}
                   {renderChoices()}
-                  {turns.length > 0 && !busy && (
-                    <Button size="sm" variant="ghost" onPress={back}>
-                      Previous question
-                    </Button>
-                  )}
                 </View>
               </View>
             )}
