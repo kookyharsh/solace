@@ -14,7 +14,6 @@
     "@expo-google-fonts/inter": "^0.4.1",
     "@expo-google-fonts/nunito": "^0.4.1",
     "@react-native-async-storage/async-storage": "2.2.0",
-    "@react-native-community/datetimepicker": "^9.3.0",
     "@solace/contracts": "workspace:*",
     "expo": "^58.0.23",
     "expo-auth-session": "~58.0.17",
