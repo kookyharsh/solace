@@ -29,6 +29,7 @@ import { useTheme } from '../src/theme';
 import { googleSignInConfigured, useGoogleSignIn } from '../src/googleAuth';
 import { saveOnboardingSetup, syncOnboardingSetup } from '../src/api';
 import { requestNotifications } from '../src/notifications';
+import { ClockTimePicker, format12Hour } from '../src/components/ClockTimePicker';
 
 const goals = ['Stress', 'Sleep', 'Focus', 'Loneliness', 'Building habits'];
 const habits = {
@@ -97,7 +98,7 @@ function GoogleOption({
   disabled,
 }: {
   onSuccess: () => void;
-  onFailure: () => void;
+  onFailure: (msg?: string) => void;
   onMergeStart: () => boolean;
   disabled: boolean;
 }) {
@@ -106,7 +107,7 @@ function GoogleOption({
     <Button
       variant="outline"
       isDisabled={disabled || !google.ready}
-      onPress={() => void google.signIn().catch(onFailure)}
+      onPress={() => void google.signIn().catch(() => onFailure('Google sign-in could not be started'))}
     >
       Continue with Google
     </Button>
@@ -223,13 +224,15 @@ export default function Onboarding() {
     setGoogleBusy(false);
     void complete();
   }, [complete]);
-  const googleFailed = useCallback(() => {
+  const googleFailed = useCallback((msg?: string) => {
     if (mergingGoogle.current) {
       mergingGoogle.current = false;
       submitting.current = false;
     }
     setGoogleBusy(false);
-    setError('Google sign-in didn’t finish. You can try again or continue as guest.');
+    if (msg) {
+      setError(msg);
+    }
   }, []);
 
   const submitName = (key: 'companionName' | 'nickname', name: string) => {
@@ -249,13 +252,13 @@ export default function Onboarding() {
   const submitTime = (key: 'wakeTime' | 'sleepTime', time: string) => {
     const trimmed = time.trim();
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(trimmed)) {
-      setError('Use a 24-hour time such as ' + defaults[key] + '.');
+      setError('Please select a valid time.');
       return;
     }
     answer(
       key,
       trimmed,
-      trimmed,
+      format12Hour(trimmed),
       key === 'wakeTime'
         ? 'Got it. That gives me a feel for your mornings.'
         : 'Thanks. That helps me understand your routine.',
@@ -376,39 +379,17 @@ export default function Onboarding() {
       case 'wakeTime':
       case 'sleepTime':
         return (
-          <>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Input
-                accessibilityLabel={question === 'wakeTime' ? 'Wake time' : 'Sleep time'}
-                isInvalid={!!error}
-                value={answers[question]}
-                onChangeText={(value) => {
-                  setError('');
-                  setAnswers((current) => ({ ...current, [question]: value }));
-                }}
-                keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
-                maxLength={5}
-                placeholder={defaults[question]}
-                onSubmitEditing={() => submitTime(question, answers[question])}
-                returnKeyType="send"
-                containerClassName="flex-1"
-                style={{ minHeight: 48 }}
-              />
-              <ConversationIconButton
-                label="Send time"
-                icon="send"
-                primary
-                onPress={() => submitTime(question, answers[question])}
-              />
-            </View>
-            <Button
-              size="sm"
-              variant="ghost"
-              onPress={() => submitTime(question, defaults[question])}
-            >
-              {'Use ' + defaults[question]}
-            </Button>
-          </>
+          <View style={{ gap: 12, width: '100%', alignItems: 'center' }}>
+            <ClockTimePicker
+              value={answers[question] || defaults[question]}
+              onChange={(value) => {
+                setError('');
+                setAnswers((current) => ({ ...current, [question]: value }));
+              }}
+              onConfirm={(value) => submitTime(question, value)}
+              confirmLabel={`Confirm ${format12Hour(answers[question] || defaults[question])}`}
+            />
+          </View>
         );
       case 'memoryConsent':
       case 'notificationConsent': {

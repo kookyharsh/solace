@@ -2,7 +2,7 @@
   "expo": {
     "name": "Solace AI",
     "slug": "solace-ai",
-    "scheme": "solace",
+    "scheme": ["solace", "ai.solace.app"],
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",

@@ -135,6 +135,9 @@ export async function signOut() {
       'solace.accessToken',
       'solace.refreshToken',
       'solace.onboarding',
+      'solace.profile',
+      'solace.local_reminders',
+      'solace.queuedChat',
       pendingSetupKey,
     ]);
   } finally {

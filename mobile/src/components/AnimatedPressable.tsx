@@ -3,21 +3,28 @@
  *
  * Drop-in replacement for React Native's Pressable that adds a spring
  * scale micro-interaction (0.96 on press-in, back to 1.0 on release).
- * Runs fully on the UI thread via react-native-reanimated worklets.
- * Respects the system "Reduce Motion" setting via reduceMotion prop.
+ * Runs smoothly via Reanimated while using React Native's native Pressable
+ * to ensure 100% reliable tap handling inside ScrollViews and lists.
  */
 import { type ReactNode, useEffect, useState } from 'react';
-import { AccessibilityInfo, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  AccessibilityInfo,
+  type GestureResponderEvent,
+  Pressable,
+  type PressableProps,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import Animated, {
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { haptics } from '../haptics';
 
-interface AnimatedPressableProps extends Omit<PressableProps, 'style' | 'children'> {
+const AnimatedPressableBase = Animated.createAnimatedComponent(Pressable);
+
+export interface AnimatedPressableProps extends Omit<PressableProps, 'style' | 'children'> {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
   /** Override the pressed scale. Default 0.96. */
@@ -26,20 +33,19 @@ interface AnimatedPressableProps extends Omit<PressableProps, 'style' | 'childre
   noHaptics?: boolean;
 }
 
-function triggerHaptic() {
-  void haptics.tap();
-}
-
 export function AnimatedPressable({
   children,
   style,
   onPress,
+  onPressIn,
+  onPressOut,
   disabled,
   pressedScale = 0.96,
   noHaptics = false,
-  accessibilityRole,
+  accessibilityRole = 'button',
   accessibilityLabel,
   accessibilityState,
+  ...rest
 }: AnimatedPressableProps) {
   const scale = useSharedValue(1);
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -55,33 +61,37 @@ export function AnimatedPressable({
     opacity: disabled ? 0.5 : 1,
   }));
 
-  const gesture = Gesture.Tap()
-    .onBegin(() => {
-      if (!reduceMotion) scale.value = withSpring(pressedScale, { damping: 10, stiffness: 300 });
-    })
-    .onFinalize((_, success) => {
-      scale.value = withSpring(1, { damping: 12, stiffness: 300 });
-      if (success && !disabled) {
-        if (!noHaptics) runOnJS(triggerHaptic)();
-        if (onPress) {
-          // Gesture callbacks are worklets on the UI runtime. React callbacks
-          // must cross back to JS only after the visual feedback has completed.
-          runOnJS(onPress)(undefined as never);
-        }
-      }
-    })
-    .enabled(!disabled);
+  const handlePressIn = (event: GestureResponderEvent) => {
+    if (!reduceMotion && !disabled) {
+      scale.value = withSpring(pressedScale, { damping: 12, stiffness: 350 });
+    }
+    onPressIn?.(event);
+  };
+
+  const handlePressOut = (event: GestureResponderEvent) => {
+    scale.value = withSpring(1, { damping: 14, stiffness: 350 });
+    onPressOut?.(event);
+  };
+
+  const handlePress = (event: GestureResponderEvent) => {
+    if (disabled) return;
+    if (!noHaptics) void haptics.tap();
+    onPress?.(event);
+  };
 
   return (
-    <GestureDetector gesture={gesture}>
-      <Animated.View
-        style={[style, animatedStyle]}
-        accessibilityRole={accessibilityRole ?? 'button'}
-        accessibilityLabel={accessibilityLabel}
-        accessibilityState={{ ...accessibilityState, disabled: !!disabled }}
-      >
-        {children}
-      </Animated.View>
-    </GestureDetector>
+    <AnimatedPressableBase
+      accessibilityRole={accessibilityRole}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ ...accessibilityState, disabled: !!disabled }}
+      disabled={disabled}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={handlePress}
+      style={[style, animatedStyle]}
+      {...rest}
+    >
+      {children}
+    </AnimatedPressableBase>
   );
 }

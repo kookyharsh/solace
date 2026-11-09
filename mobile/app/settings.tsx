@@ -17,6 +17,11 @@ import { Button, Card, GradientBackground } from '../src/components/ui';
 import { useTheme, useThemeMode } from '../src/theme';
 import { googleSignInConfigured, useGoogleSignIn } from '../src/googleAuth';
 import {
+  ClockTimePickerModal,
+  TimePickerButton,
+  format12Hour,
+} from '../src/components/ClockTimePicker';
+import {
   requestNotifications,
   scheduleCustomReminder,
   scheduleDefaultDailyReminders,
@@ -115,6 +120,8 @@ export default function Settings() {
   const [habits, setHabits] = useState<Array<{ key: string; enabled: boolean }>>([]);
   const [reminderTitle, setReminderTitle] = useState('A gentle moment');
   const [reminderTime, setReminderTime] = useState('20:00');
+  const [clockModalVisible, setClockModalVisible] = useState(false);
+  const [addingReminder, setAddingReminder] = useState(false);
   const [memoryConsent, setMemoryConsent] = useState(false);
   const [notificationConsent, setNotificationConsent] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
@@ -128,9 +135,11 @@ export default function Settings() {
     setGoogleBusy(false);
     Alert.alert('Google connected', 'Your guest account is now connected to Google.');
   }, []);
-  const failGoogleLink = useCallback(() => {
+  const failGoogleLink = useCallback((errorMessage?: string) => {
     setGoogleBusy(false);
-    Alert.alert('Google connection failed', 'Please try again or check your connection.');
+    if (errorMessage) {
+      Alert.alert('Google connection', errorMessage);
+    }
   }, []);
   const google = useGoogleSignIn(beginGoogleLink, completeGoogleLink, failGoogleLink);
 
@@ -145,8 +154,15 @@ export default function Settings() {
       .then(setMemories)
       .catch(() => undefined);
     getReminders()
-      .then(setReminders)
-      .catch(() => undefined);
+      .then((items) => {
+        setReminders(items);
+        void AsyncStorage.setItem('solace.local_reminders', JSON.stringify(items));
+      })
+      .catch(() => {
+        AsyncStorage.getItem('solace.local_reminders').then((raw) => {
+          if (raw) setReminders(JSON.parse(raw));
+        }).catch(() => undefined);
+      });
     getHabitPreferences()
       .then(setHabits)
       .catch(() => undefined);
@@ -176,33 +192,35 @@ export default function Settings() {
         'solace.profile',
         JSON.stringify({ ...value, companionName: name.trim() || null, nickname: nickname.trim() }),
       );
-      await updateProfile({
-        companionName: name.trim() || null,
-        nickname: nickname.trim() || null,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      });
-      Alert.alert('Saved', 'Your profile is up to date.');
+      try {
+        await updateProfile({
+          companionName: name.trim() || null,
+          nickname: nickname.trim() || null,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
+        Alert.alert('Saved', 'Your profile is up to date.');
+      } catch {
+        Alert.alert('Saved locally', 'Your profile was updated on this device.');
+      }
     } catch {
-      Alert.alert('Could not save', 'Please try again when you are online.');
+      Alert.alert('Could not save', 'An error occurred while saving your profile.');
     } finally {
       setSaving(false);
     }
   };
   const setHabit = (key: string, enabled: boolean) => {
     const previous = habits;
-    setHabits((current) => [...current.filter((item) => item.key !== key), { key, enabled }]);
+    const updated = [...previous.filter((item) => item.key !== key), { key, enabled }];
+    setHabits(updated);
     void updateHabitPreference(key, enabled).catch(() => {
-      setHabits(previous);
-      Alert.alert('Could not update', 'Please try again when you are online.');
+      // Retained in optimistic local state
     });
   };
   const setMemory = (value: boolean) => {
-    const previous = memoryConsent;
     setMemoryConsent(value);
     if (!value) setMemories([]);
     void updateProfile({ memoryConsent: value }).catch(() => {
-      setMemoryConsent(previous);
-      Alert.alert('Could not update', 'Please try again when you are online.');
+      // Retained in optimistic local state
     });
   };
   const setNotifications = (value: boolean) => {
@@ -222,6 +240,68 @@ export default function Settings() {
           'You can enable permission in your device settings.',
         ),
       );
+  };
+
+  const handleAddReminder = async () => {
+    const title = reminderTitle.trim();
+    if (!title) {
+      Alert.alert('Missing title', 'Please enter a title for your reminder.');
+      return;
+    }
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(reminderTime)) {
+      Alert.alert('Invalid time', 'Please choose a valid time using the clock.');
+      return;
+    }
+
+    setAddingReminder(true);
+    const localId = `local-${Date.now()}`;
+    const newReminder = {
+      id: localId,
+      title,
+      time: reminderTime,
+      enabled: true,
+    };
+
+    // 1. Schedule local notification on device first
+    try {
+      await scheduleCustomReminder(title, reminderTime, [0, 1, 2, 3, 4, 5, 6]);
+    } catch {
+      // Non-fatal if permission wasn't granted yet
+    }
+
+    // 2. Persist to server / local storage
+    try {
+      const serverReminder = await createReminder({
+        type: 'custom',
+        title,
+        time: reminderTime,
+        days: [0, 1, 2, 3, 4, 5, 6],
+      });
+      const updated = [...reminders, (serverReminder as typeof newReminder) || newReminder];
+      setReminders(updated);
+      await AsyncStorage.setItem('solace.local_reminders', JSON.stringify(updated));
+      Alert.alert('Reminder saved', `Solace will remind you at ${format12Hour(reminderTime)}.`);
+    } catch {
+      // Server unreachable: fallback to local reminder
+      const updated = [...reminders, newReminder];
+      setReminders(updated);
+      await AsyncStorage.setItem('solace.local_reminders', JSON.stringify(updated));
+      Alert.alert(
+        'Reminder scheduled',
+        `Scheduled on this device for ${format12Hour(reminderTime)}.`,
+      );
+    } finally {
+      setAddingReminder(false);
+    }
+  };
+
+  const handleDeleteReminder = async (id: string) => {
+    const updated = reminders.filter((item) => item.id !== id);
+    setReminders(updated);
+    await AsyncStorage.setItem('solace.local_reminders', JSON.stringify(updated));
+    if (!id.startsWith('local-')) {
+      void deleteReminder(id).catch(() => undefined);
+    }
   };
 
   return (
@@ -392,12 +472,23 @@ export default function Settings() {
               <Button
                 label="Schedule a gentle reminder"
                 variant="secondary"
-                onPress={() => void scheduleGentleReminder()}
+                onPress={() =>
+                  void scheduleGentleReminder().then((res) => {
+                    if (res) Alert.alert('Gentle reminder scheduled', 'Solace will check in with you every 4 hours.');
+                    else Alert.alert('Notifications disabled', 'Please enable notifications in your device settings.');
+                  })
+                }
               />
               <Button
                 label="Enable morning + night check-ins"
                 variant="outline"
-                onPress={() => void scheduleDefaultDailyReminders(name.trim() || 'Your companion')}
+                onPress={() =>
+                  void scheduleDefaultDailyReminders(name.trim() || 'Your companion').then((res) => {
+                    if (res && res.length)
+                      Alert.alert('Check-ins enabled', 'Morning check-in at 9:00 AM and night reflection at 8:00 PM.');
+                    else Alert.alert('Notifications disabled', 'Please enable notifications in your device settings.');
+                  })
+                }
               />
               <View style={{ height: 1, backgroundColor: t.colors.border }} />
               <TextInput
@@ -408,43 +499,28 @@ export default function Settings() {
                 placeholderTextColor={t.colors.muted}
                 style={inputStyle}
               />
-              <TextInput
-                accessibilityLabel="Reminder time"
+              <View style={{ gap: t.spacing.xs }}>
+                <Text style={{ color: t.colors.muted, fontSize: 13, fontFamily: 'Nunito_700Bold' }}>
+                  Reminder time (12-hour AM/PM)
+                </Text>
+                <TimePickerButton
+                  value={reminderTime}
+                  label="Reminder time"
+                  onPress={() => setClockModalVisible(true)}
+                />
+              </View>
+              <ClockTimePickerModal
+                visible={clockModalVisible}
                 value={reminderTime}
-                onChangeText={setReminderTime}
-                placeholder="HH:MM"
-                placeholderTextColor={t.colors.muted}
-                keyboardType="numbers-and-punctuation"
-                style={inputStyle}
+                title="Select reminder time"
+                onClose={() => setClockModalVisible(false)}
+                onSave={setReminderTime}
               />
               <Button
-                label="Add reminder"
+                label={addingReminder ? 'Scheduling…' : 'Add reminder'}
                 variant="outline"
-                onPress={() =>
-                  void createReminder({
-                    type: 'custom',
-                    title: reminderTitle.trim(),
-                    time: reminderTime,
-                    days: [0, 1, 2, 3, 4, 5, 6],
-                  })
-                    .then((reminder) => {
-                      setReminders((current) => [
-                        ...current,
-                        reminder as (typeof reminders)[number],
-                      ]);
-                      return scheduleCustomReminder(
-                        reminderTitle.trim(),
-                        reminderTime,
-                        [0, 1, 2, 3, 4, 5, 6],
-                      );
-                    })
-                    .catch(() =>
-                      Alert.alert(
-                        'Reminder unavailable',
-                        'Check the title and time, then try again.',
-                      ),
-                    )
-                }
+                disabled={addingReminder}
+                onPress={() => void handleAddReminder()}
               />
               {reminders.map((reminder) => (
                 <View
@@ -456,19 +532,13 @@ export default function Settings() {
                     gap: t.spacing.sm,
                   }}
                 >
-                  <Text style={{ color: t.colors.ink, flex: 1 }}>
-                    {reminder.time} · {reminder.title}
+                  <Text style={{ color: t.colors.ink, flex: 1, fontFamily: 'Nunito_700Bold' }}>
+                    {format12Hour(reminder.time)} · {reminder.title}
                   </Text>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={'Delete ' + reminder.title}
-                    onPress={() =>
-                      void deleteReminder(reminder.id).then(() =>
-                        setReminders((current) =>
-                          current.filter((item) => item.id !== reminder.id),
-                        ),
-                      )
-                    }
+                    onPress={() => void handleDeleteReminder(reminder.id)}
                   >
                     <Text style={{ color: '#B94B62', fontFamily: 'Nunito_700Bold' }}>Delete</Text>
                   </Pressable>
@@ -542,7 +612,15 @@ export default function Settings() {
               <Button
                 label="Sign out"
                 variant="outline"
-                onPress={() => void signOut().then(() => router.replace('/onboarding'))}
+                onPress={() => {
+                  Alert.alert('Sign out', 'Are you sure you want to sign out of Solace?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Sign out',
+                      onPress: () => void signOut().then(() => router.replace('/onboarding')),
+                    },
+                  ]);
+                }}
               />
               <Button
                 label="Delete account and all data"
